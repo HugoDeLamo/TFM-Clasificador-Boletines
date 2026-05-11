@@ -5,6 +5,7 @@ requires-python = ">=3.13"
 dependencies = [
     "jupyter>=1.1.1",
     "pandas>=3.0.2",
+    "pyarrow>=24.0.0",
     "pydantic-ai[google]>=1.93.0",
     "python-dotenv>=1.2.2",
 ]
