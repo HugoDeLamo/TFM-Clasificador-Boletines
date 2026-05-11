@@ -1,0 +1,16 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+# Secretos — nunca al repo
+.env
+
+# Jupyter checkpoints
+.ipynb_checkpoints/
