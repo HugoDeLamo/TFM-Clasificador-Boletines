@@ -14,3 +14,12 @@ wheels/
 
 # Jupyter checkpoints
 .ipynb_checkpoints/
+
+# Datos pesados — no al repo
+data/raw/*.parquet
+data/raw/*.csv
+*.parquet
+
+# Resultados intermedios grandes
+results/*.csv
+results/*.parquet
