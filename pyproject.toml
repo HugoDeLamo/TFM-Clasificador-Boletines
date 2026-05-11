@@ -8,6 +8,7 @@ dependencies = [
     "pyarrow>=24.0.0",
     "pydantic-ai[google]>=1.93.0",
     "python-dotenv>=1.2.2",
+    "tqdm>=4.67.3",
 ]
 
 [tool.setuptools.packages.find]

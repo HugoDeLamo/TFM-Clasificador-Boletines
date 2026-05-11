@@ -509,6 +509,7 @@ dependencies = [
     { name = "pyarrow" },
     { name = "pydantic-ai" },
     { name = "python-dotenv" },
+    { name = "tqdm" },
 ]
 
 [package.metadata]
@@ -518,6 +519,7 @@ requires-dist = [
     { name = "pyarrow", specifier = ">=24.0.0" },
     { name = "pydantic-ai", extras = ["google"], specifier = ">=1.93.0" },
     { name = "python-dotenv", specifier = ">=1.2.2" },
+    { name = "tqdm", specifier = ">=4.67.3" },
 ]
 
 [[package]]
