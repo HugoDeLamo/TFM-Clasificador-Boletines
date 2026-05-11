@@ -1,7 +1,6 @@
 [project]
-name = "codigo"
+name = "clasificador"
 version = "0.1.0"
-description = "Add your description here"
 requires-python = ">=3.13"
 dependencies = [
     "jupyter>=1.1.1",
@@ -9,3 +8,6 @@ dependencies = [
     "pydantic-ai[google]>=1.93.0",
     "python-dotenv>=1.2.2",
 ]
+
+[tool.setuptools.packages.find]
+where = ["src"]
