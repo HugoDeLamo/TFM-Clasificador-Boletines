@@ -1,18 +1,8 @@
 """
-Construcción de agentes y funciones de clasificación para el clasificador
-taxonómico de boletines oficiales españoles.
+Agente y funciones de clasificación para el clasificador taxonómico de boletines oficiales.
 
-Este módulo centraliza:
-- Pre-procesamiento N0 (ámbito) y N1 (tipo de acto por reglas)
-- Construcción de agentes Pydantic AI
-- Clasificación asíncrona individual y en batch
-
-Uso básico:
-    from clasificador.agent import build_agent, run_experiment
-    from clasificador.prompts import PROMPT_REGISTRY
-
-    agent = build_agent(model, prompt_version="v3")
-    df_results = await run_experiment(agent, df_input, output_path="results/exp.csv")
+Centraliza: pre-procesamiento N0/N1, construcción de agentes Pydantic AI,
+clasificación asíncrona individual y ejecución de experimentos en batch.
 """
 
 import asyncio
@@ -38,7 +28,6 @@ _GAZETTE_TO_AMBITO: dict[str, str] = {
 
 
 def get_ambito(bulletin: str) -> str:
-    """Devuelve el ámbito administrativo a partir del código del boletín."""
     return _GAZETTE_TO_AMBITO.get(bulletin.lower(), "autonómico")
 
 
@@ -126,56 +115,30 @@ def preprocess_description(desc: str, bulletin: str) -> str:
 
 
 def inferir_act_type(description: str, bulletin: str) -> ActType:
-    """
-    Infiere el tipo de acto (N1) por reglas de primer token.
-    Cobertura: ~89.6% del corpus Q1 2025.
-    """
-    desc_clean = preprocess_description(description, bulletin)
-    text = desc_clean.lower().strip()
+    """Infiere el tipo de acto (N1) por reglas de primer token. Cobertura: ~89.6% Q1 2025."""
+    text = preprocess_description(description, bulletin).lower().strip()
     for pattern, act_type in _N1_MAP:
         if text.startswith(pattern):
             return act_type
     return ActType.OTROS
 
 
-# ── Construcción del agente ───────────────────────────────────────────────────
+# ── Agente ────────────────────────────────────────────────────────────────────
 
 def build_agent(model, prompt_version: str = "v3") -> Agent:
-    """
-    Construye un agente Pydantic AI con el prompt especificado.
-
-    Args:
-        model: Instancia de OpenAIModel u otro modelo Pydantic AI
-        prompt_version: "v1", "v2" o "v3" (default: "v3" — mejor F1)
-
-    Returns:
-        Agent listo para clasificar
-    """
+    """Construye un agente con el prompt indicado ("v1", "v2" o "v3")."""
     if prompt_version not in PROMPT_REGISTRY:
-        raise ValueError(
-            f"Versión desconocida: '{prompt_version}'. "
-            f"Opciones: {list(PROMPT_REGISTRY)}"
-        )
-    return Agent(
-        model,
-        output_type=ClassifierOutput,
-        system_prompt=PROMPT_REGISTRY[prompt_version],
-    )
+        raise ValueError(f"Versión desconocida: '{prompt_version}'. Opciones: {list(PROMPT_REGISTRY)}")
+    return Agent(model, output_type=ClassifierOutput, system_prompt=PROMPT_REGISTRY[prompt_version])
 
 
 # ── Clasificación ─────────────────────────────────────────────────────────────
 
-def _build_user_message(
-    description: str,
-    bulletin: str,
-    use_n1_context: bool,
-) -> str:
-    """Construye el mensaje de usuario con contexto N0 y opcionalmente N1."""
+def _build_user_message(description: str, bulletin: str, use_n1_context: bool) -> str:
     n0 = get_ambito(bulletin)
     msg = f"Boletín: {bulletin.upper()} (ámbito: {n0})\n\nDescripción: {description}"
     if use_n1_context:
-        act_type_pre = inferir_act_type(description, bulletin)
-        msg += f"\n\nTipo de acto pre-clasificado (N1): {act_type_pre.value}"
+        msg += f"\n\nTipo de acto pre-clasificado (N1): {inferir_act_type(description, bulletin).value}"
     return msg
 
 
@@ -185,34 +148,16 @@ async def clasificar_async(
     agent: Agent,
     use_n1_context: bool = False,
 ) -> dict:
-    """
-    Clasifica una publicación de forma asíncrona.
-
-    Returns:
-        Dict con campos de predicción listos para CSV.
-        En caso de error devuelve campos None con reasoning="ERROR: ..."
-    """
-    user_msg = _build_user_message(description, bulletin, use_n1_context)
-    try:
-        result = await agent.run(user_msg)
-        output = result.output
-        return {
-            "is_relevant_pred":  output.is_relevant,
-            "act_type_pred":     output.act_type.value,
-            "procedures_pred":   json.dumps([p.value for p in output.procedures], ensure_ascii=False),
-            "technologies_pred": json.dumps([t.value for t in output.technologies], ensure_ascii=False),
-            "confidence":        output.confidence,
-            "reasoning":         output.reasoning,
-        }
-    except Exception as e:
-        return {
-            "is_relevant_pred":  None,
-            "act_type_pred":     None,
-            "procedures_pred":   "[]",
-            "technologies_pred": "[]",
-            "confidence":        None,
-            "reasoning":         f"ERROR: {str(e)[:100]}",
-        }
+    result = await agent.run(_build_user_message(description, bulletin, use_n1_context))
+    output = result.output
+    return {
+        "is_relevant_pred":  output.is_relevant,
+        "act_type_pred":     output.act_type.value,
+        "procedures_pred":   json.dumps([p.value for p in output.procedures], ensure_ascii=False),
+        "technologies_pred": json.dumps([t.value for t in output.technologies], ensure_ascii=False),
+        "confidence":        output.confidence,
+        "reasoning":         output.reasoning,
+    }
 
 
 async def run_experiment(
@@ -226,24 +171,10 @@ async def run_experiment(
     """
     Ejecuta el agente sobre todos los registros del DataFrame.
 
-    Soporta checkpoint: si el CSV de salida ya existe, carga las filas ya
-    clasificadas y solo procesa las pendientes. Útil para reanudar tras una
-    caída de LM Studio sin repetir trabajo ya hecho.
-
-    Args:
-        agent: Agente construido con build_agent()
-        df_input: DataFrame con columnas 'description' y 'bulletin'
-        use_n1_context: Si True añade act_type pre-computado (Config +N1)
-        concurrency: Requests simultáneos (1 para local, 5+ para cloud)
-        output_path: Ruta del CSV de resultados
-        desc: Etiqueta de la barra de progreso
-
-    Returns:
-        DataFrame con predicciones añadidas
+    Soporta checkpoint: si el CSV ya existe, retoma desde la última fila guardada.
     """
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
 
-    # Checkpoint: recuperar filas ya clasificadas en ejecuciones anteriores
     done_descriptions: set[str] = set()
     existing_rows: list[dict] = []
     if Path(output_path).exists():
@@ -258,9 +189,7 @@ async def run_experiment(
 
     async def process_row(row):
         async with semaphore:
-            pred = await clasificar_async(
-                row["description"], row["bulletin"], agent, use_n1_context
-            )
+            pred = await clasificar_async(row["description"], row["bulletin"], agent, use_n1_context)
             return {**row.to_dict(), **pred}
 
     new_results: list[dict] = []
@@ -270,8 +199,5 @@ async def run_experiment(
 
     df_results = pd.DataFrame(existing_rows + list(new_results))
     df_results.to_csv(output_path, index=False)
-
-    errores = df_results["reasoning"].astype(str).str.startswith("ERROR").sum()
     print(f"\n✓ {len(df_results)} registros → {output_path}")
-    print(f"  Errores de formato: {errores}/{len(df_results)}")
     return df_results
