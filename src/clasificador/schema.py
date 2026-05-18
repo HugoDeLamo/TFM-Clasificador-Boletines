@@ -43,7 +43,7 @@ class ActType(str, Enum):
 # ── N2: Procedimientos ambientales/energéticos ────────────────────────────────
 # Etiquetas multilabel: una publicación puede contener más de un procedimiento
 # (ej. una resolución que otorga AAP y AAC simultáneamente).
-# Lista cerrada — añadir nuevos valores requiere reentrenar y re-anotar.
+# Lista cerrada - añadir nuevos valores requiere reentrenar y re-anotar.
 class ProcedureType(str, Enum):
     DIA = "DIA"   # Declaración de Impacto Ambiental
     AAP = "AAP"   # Autorización Administrativa Previa

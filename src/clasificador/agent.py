@@ -33,7 +33,7 @@ def get_ambito(bulletin: str) -> str:
 
 # ── N1: tipo de acto por primer token ────────────────────────────────────────
 # Cobertura medida: 89.6% del corpus (Q1 2025)
-# El 10.4% restante cae en OTROS — ver DEC-010 y DEC-011
+# El 10.4% restante cae en OTROS - ver DEC-010 y DEC-011
 
 _N1_MAP: list[tuple[str, ActType]] = [
     (r"corrección de errat",     ActType.CORRECCION_ERRORES),
