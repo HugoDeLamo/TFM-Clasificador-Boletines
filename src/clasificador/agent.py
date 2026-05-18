@@ -226,6 +226,10 @@ async def run_experiment(
     """
     Ejecuta el agente sobre todos los registros del DataFrame.
 
+    Soporta checkpoint: si el CSV de salida ya existe, carga las filas ya
+    clasificadas y solo procesa las pendientes. Útil para reanudar tras una
+    caída de LM Studio sin repetir trabajo ya hecho.
+
     Args:
         agent: Agente construido con build_agent()
         df_input: DataFrame con columnas 'description' y 'bulletin'
@@ -238,6 +242,18 @@ async def run_experiment(
         DataFrame con predicciones añadidas
     """
     Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+
+    # Checkpoint: recuperar filas ya clasificadas en ejecuciones anteriores
+    done_descriptions: set[str] = set()
+    existing_rows: list[dict] = []
+    if Path(output_path).exists():
+        df_existing = pd.read_csv(output_path)
+        done_descriptions = set(df_existing["description"].tolist())
+        existing_rows = df_existing.to_dict("records")
+        print(f"  Reanudando: {len(done_descriptions)}/{len(df_input)} registros ya clasificados")
+
+    df_pending = df_input[~df_input["description"].isin(done_descriptions)]
+
     semaphore = asyncio.Semaphore(concurrency)
 
     async def process_row(row):
@@ -247,10 +263,12 @@ async def run_experiment(
             )
             return {**row.to_dict(), **pred}
 
-    tasks = [process_row(row) for _, row in df_input.iterrows()]
-    results = await tqdm_asyncio.gather(*tasks, desc=desc)
+    new_results: list[dict] = []
+    if not df_pending.empty:
+        tasks = [process_row(row) for _, row in df_pending.iterrows()]
+        new_results = await tqdm_asyncio.gather(*tasks, desc=desc)
 
-    df_results = pd.DataFrame(results)
+    df_results = pd.DataFrame(existing_rows + list(new_results))
     df_results.to_csv(output_path, index=False)
 
     errores = df_results["reasoning"].astype(str).str.startswith("ERROR").sum()
