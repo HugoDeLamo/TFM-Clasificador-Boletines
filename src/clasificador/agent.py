@@ -8,6 +8,7 @@ clasificación asíncrona individual y ejecución de experimentos en batch.
 import asyncio
 import json
 import re
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -189,15 +190,20 @@ async def run_experiment(
 
     async def process_row(row):
         async with semaphore:
+            t0 = time.perf_counter()
             pred = await clasificar_async(row["description"], row["bulletin"], agent, use_n1_context)
+            pred["duration_s"] = round(time.perf_counter() - t0, 3)
             return {**row.to_dict(), **pred}
 
     new_results: list[dict] = []
     if not df_pending.empty:
         tasks = [process_row(row) for _, row in df_pending.iterrows()]
+        t_start = time.perf_counter()
         new_results = await tqdm_asyncio.gather(*tasks, desc=desc)
+        t_total = time.perf_counter() - t_start
+        n = len(new_results)
+        print(f"Tiempo: {t_total:.1f}s total  |  {t_total/n:.2f}s/item  |  {n} items")
 
     df_results = pd.DataFrame(existing_rows + list(new_results))
     df_results.to_csv(output_path, index=False)
-    print(f"\n✓ {len(df_results)} registros → {output_path}")
     return df_results
