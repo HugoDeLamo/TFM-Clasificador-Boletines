@@ -126,11 +126,19 @@ def inferir_act_type(description: str, bulletin: str) -> ActType:
 
 # ── Agente ────────────────────────────────────────────────────────────────────
 
-def build_agent(model, prompt_version: str = "v3") -> Agent:
-    """Construye un agente con el prompt indicado ("v1", "v2" o "v3")."""
-    if prompt_version not in PROMPT_REGISTRY:
-        raise ValueError(f"Versión desconocida: '{prompt_version}'. Opciones: {list(PROMPT_REGISTRY)}")
-    return Agent(model, output_type=ClassifierOutput, system_prompt=PROMPT_REGISTRY[prompt_version])
+def build_agent(model, prompt_version: str = "v3", *, output_type=None, prompt_registry=None) -> Agent:
+    """
+    Construye un agente con el prompt indicado.
+
+    Para el bloque B0 no es necesario pasar nada extra (usa defaults de B0).
+    Para otros bloques (B1, B2...) pasar output_type y prompt_registry propios:
+        build_agent(model, "v1", output_type=B1ClassifierOutput, prompt_registry=PROMPT_REGISTRY_B1)
+    """
+    registry = prompt_registry if prompt_registry is not None else PROMPT_REGISTRY
+    ot       = output_type     if output_type     is not None else ClassifierOutput
+    if prompt_version not in registry:
+        raise ValueError(f"Versión desconocida: '{prompt_version}'. Opciones: {list(registry)}")
+    return Agent(model, output_type=ot, system_prompt=registry[prompt_version])
 
 
 # ── Clasificación ─────────────────────────────────────────────────────────────
@@ -151,14 +159,20 @@ async def clasificar_async(
 ) -> dict:
     result = await agent.run(_build_user_message(description, bulletin, use_n1_context))
     output = result.output
-    return {
-        "is_relevant_pred":  output.is_relevant,
-        "act_type_pred":     output.act_type.value,
-        "procedures_pred":   json.dumps([p.value for p in output.procedures], ensure_ascii=False),
-        "technologies_pred": json.dumps([t.value for t in output.technologies], ensure_ascii=False),
-        "confidence":        output.confidence,
-        "reasoning":         output.reasoning,
-    }
+    # Serializar el output Pydantic de forma generica para soportar cualquier bloque (B0, B1...).
+    # Campos escalares no-enum (bool, float, str) se guardan con su nombre original.
+    # Enums y listas reciben el sufijo _pred y se serializan a string/JSON.
+    row: dict = {}
+    for field_name, value in output.model_dump().items():
+        if field_name in ("confidence", "reasoning"):
+            row[field_name] = value
+        elif isinstance(value, list):
+            row[f"{field_name}_pred"] = json.dumps(value, ensure_ascii=False)
+        elif isinstance(value, bool):
+            row[f"{field_name}_pred"] = value
+        else:
+            row[f"{field_name}_pred"] = value
+    return row
 
 
 async def run_experiment(
