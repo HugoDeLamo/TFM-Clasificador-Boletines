@@ -15,8 +15,8 @@ import pandas as pd
 from pydantic_ai import Agent
 from tqdm.asyncio import tqdm_asyncio
 
-from clasificador.schema import ActType, ClassifierOutput
-from clasificador.prompts import PROMPT_REGISTRY
+from clasificador.schema_B0 import ActType, ClassifierOutput
+from clasificador.prompts_B0 import PROMPT_REGISTRY
 
 
 # ── N0: ámbito administrativo por bulletin ────────────────────────────────────
