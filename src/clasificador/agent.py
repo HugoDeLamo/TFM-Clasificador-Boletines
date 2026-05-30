@@ -11,6 +11,8 @@ import re
 import time
 from pathlib import Path
 
+from pydantic_ai.exceptions import ModelHTTPError
+
 import pandas as pd
 from pydantic_ai import Agent
 import tqdm
@@ -207,7 +209,15 @@ async def run_experiment(
     async def process_row(row, pbar):
         async with semaphore:
             t0 = time.perf_counter()
-            pred = await clasificar_async(row["description"], row["bulletin"], agent, use_n1_context)
+            try:
+                pred = await clasificar_async(row["description"], row["bulletin"], agent, use_n1_context)
+            except ModelHTTPError as e:
+                if e.status_code == 400:
+                    # Descripcion demasiado larga para la ventana de contexto del modelo
+                    print(f"\n  [SKIP] context overflow en: {row['description'][:80]!r}")
+                    pred = {"error": f"context_overflow: {e}"}
+                else:
+                    raise
             pred["duration_s"] = round(time.perf_counter() - t0, 3)
             result = {**row.to_dict(), **pred}
             # Guardar inmediatamente tras cada fila para sobrevivir cortes de conexion
