@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pandas as pd
 from pydantic_ai import Agent
-from tqdm.asyncio import tqdm_asyncio
+import tqdm
 
 from clasificador.schema_B0 import ActType, ClassifierOutput
 from clasificador.prompts_B0 import PROMPT_REGISTRY
@@ -201,23 +201,37 @@ async def run_experiment(
     df_pending = df_input[~df_input["description"].isin(done_descriptions)]
 
     semaphore = asyncio.Semaphore(concurrency)
+    # write_lock protege las escrituras al CSV cuando concurrency > 1
+    write_lock = asyncio.Lock()
 
-    async def process_row(row):
+    async def process_row(row, pbar):
         async with semaphore:
             t0 = time.perf_counter()
             pred = await clasificar_async(row["description"], row["bulletin"], agent, use_n1_context)
             pred["duration_s"] = round(time.perf_counter() - t0, 3)
-            return {**row.to_dict(), **pred}
+            result = {**row.to_dict(), **pred}
+            # Guardar inmediatamente tras cada fila para sobrevivir cortes de conexion
+            async with write_lock:
+                pd.DataFrame([result]).to_csv(
+                    output_path, mode="a", header=not Path(output_path).exists(), index=False
+                )
+            pbar.update(1)
+            return result
 
     new_results: list[dict] = []
     if not df_pending.empty:
-        tasks = [process_row(row) for _, row in df_pending.iterrows()]
         t_start = time.perf_counter()
-        new_results = await tqdm_asyncio.gather(*tasks, desc=desc)
+        # Escribir cabecera si el CSV no existe aun (primera ejecucion sin checkpoint)
+        if not Path(output_path).exists() and not existing_rows:
+            pd.DataFrame(columns=list(df_pending.iloc[0].to_dict()) + ["duration_s"]).to_csv(
+                output_path, index=False
+            )
+        with tqdm.tqdm(total=len(df_pending), desc=desc) as pbar:
+            tasks = [process_row(row, pbar) for _, row in df_pending.iterrows()]
+            new_results = await asyncio.gather(*tasks)
         t_total = time.perf_counter() - t_start
         n = len(new_results)
         print(f"Tiempo: {t_total:.1f}s total  |  {t_total/n:.2f}s/item  |  {n} items")
 
-    df_results = pd.DataFrame(existing_rows + list(new_results))
-    df_results.to_csv(output_path, index=False)
+    df_results = pd.read_csv(output_path)
     return df_results
