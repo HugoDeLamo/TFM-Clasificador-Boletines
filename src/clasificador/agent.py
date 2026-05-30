@@ -205,8 +205,11 @@ async def run_experiment(
     semaphore = asyncio.Semaphore(concurrency)
     # write_lock protege las escrituras al CSV cuando concurrency > 1
     write_lock = asyncio.Lock()
+    # Controla si la cabecera ya fue escrita en esta ejecucion
+    header_written = Path(output_path).exists()
 
     async def process_row(row, pbar):
+        nonlocal header_written
         async with semaphore:
             t0 = time.perf_counter()
             try:
@@ -214,28 +217,30 @@ async def run_experiment(
             except ModelHTTPError as e:
                 if e.status_code == 400:
                     # Descripcion demasiado larga para la ventana de contexto del modelo
-                    print(f"\n  [SKIP] context overflow en: {row['description'][:80]!r}")
-                    pred = {"error": f"context_overflow: {e}"}
+                    print(f"\n  [SKIP] context overflow: {row['description'][:80]!r}")
+                    pred = {"error": "context_overflow"}
                 else:
-                    raise
+                    # Otros errores HTTP: registrar y continuar
+                    print(f"\n  [ERROR] HTTP {e.status_code}: {e}")
+                    pred = {"error": f"http_{e.status_code}"}
+            except Exception as e:
+                # Errores de conexion u otros inesperados: registrar y continuar
+                print(f"\n  [ERROR] {type(e).__name__}: {e}")
+                pred = {"error": type(e).__name__}
             pred["duration_s"] = round(time.perf_counter() - t0, 3)
             result = {**row.to_dict(), **pred}
             # Guardar inmediatamente tras cada fila para sobrevivir cortes de conexion
             async with write_lock:
                 pd.DataFrame([result]).to_csv(
-                    output_path, mode="a", header=not Path(output_path).exists(), index=False
+                    output_path, mode="a", header=not header_written, index=False
                 )
+                header_written = True
             pbar.update(1)
             return result
 
     new_results: list[dict] = []
     if not df_pending.empty:
         t_start = time.perf_counter()
-        # Escribir cabecera si el CSV no existe aun (primera ejecucion sin checkpoint)
-        if not Path(output_path).exists() and not existing_rows:
-            pd.DataFrame(columns=list(df_pending.iloc[0].to_dict()) + ["duration_s"]).to_csv(
-                output_path, index=False
-            )
         with tqdm.tqdm(total=len(df_pending), desc=desc) as pbar:
             tasks = [process_row(row, pbar) for _, row in df_pending.iterrows()]
             new_results = await asyncio.gather(*tasks)
