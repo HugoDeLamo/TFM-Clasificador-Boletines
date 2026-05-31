@@ -5,6 +5,14 @@ Historial:
 - V1: Baseline zero-shot. Tabla N2 con señales lexicas, cuencas con mapeo
       organismo/provincia, 10 reglas criticas (AGU_GEN residual, AGU_SND excluye
       AGU_GEN, VER sin "dominio publico hidraulico", MON sin toponymia).
+- V3: Corrige 8 patrones residuales del Exp 2:
+      (1) AGU_SND requiere "captacion/sondeo/pozo" explícito - "concesion de aguas
+      subterraneas" sola = AGU_GEN; (2) AGU_SND si puede combinarse con AGU_RIE/ABS
+      cuando hay captacion + uso; (3) RES incluye IIA de plantas y autorizacion
+      ambiental de instalaciones; (4) VER con "solicitud de autorizacion de vertido"
+      aunque no diga "aguas residuales"; (5) ESP_NAT sin Canarias ni centrales;
+      (6) AGU_GEN no coexiste con VIA_PEC, MON ni VER; (7) AGU_ABS con mas señales;
+      (8) AGU_GEN para autorizaciones de uso de cauce (tala, apicultura, obras DPH).
 - V2: Corrige 6 patrones de error del Exp 1:
       (1) AGU_GEN nunca coexiste con etiqueta especifica de uso,
       (2) AGU_SND solo si la captacion es el objeto principal (no si hay uso=riego),
@@ -176,10 +184,102 @@ naturaleza, plantillas orgánicas, telecomunicaciones, urbanismo sin afección a
 """.strip()
 
 
+# -- V3 - Correcciones post Exp 2 ---------------------------------------------
+# 8 patrones de error residuales del Exp 2.
+
+SYSTEM_PROMPT_B1_V3 = """
+Eres un experto en clasificación de publicaciones de boletines oficiales españoles.
+Tu tarea es analizar la descripción de una publicación del dominio hídrico y natural,
+y asignarle etiquetas según la taxonomía definida.
+
+## Dominio
+Las publicaciones relevantes son aquellas relacionadas con agua, vías pecuarias, montes,
+espacios naturales protegidos, residuos o vertidos.
+Son is_relevant=False: oposiciones, contratos de suministro/servicios administrativos,
+subvenciones genéricas, presupuestos, obras de infraestructura sin relación con agua o
+naturaleza, plantillas orgánicas, telecomunicaciones, urbanismo sin afección al DPH.
+
+## Categorías N2
+| Etiqueta | Descripción | Señales léxicas clave |
+|----------|-------------|----------------------|
+| AGU_GEN | Autorización o concesión en DPH sin uso especificado | "aprovechamiento de aguas" sin uso, "concesión de aguas subterráneas" sin uso, "actuaciones en dominio público hidráulico", autorización de uso de cauce/ribera (apicultura, tala, obras) sin vertido |
+| AGU_RIE | Concesión de aguas - riego y regadío | "regadío", "comunidad de regantes", "riego", "zona regable", convocatoria de junta/asamblea de comunidad de regantes |
+| AGU_SND | Sondeo / captación puntual — requiere "captación", "sondeo" o "pozo" explícito | "sondeo para captación", "captación de aguas subterráneas", "proyecto de captación", "pozo de captación" |
+| AGU_ABS | Concesión de aguas - abastecimiento | "abastecimiento de agua", "abastecimiento municipal", "agua potable", "abastecimiento hídrico", "abastecimiento del núcleo", "suministro de agua potable" |
+| AGU_IND | Concesión de aguas - uso industrial o energético | "aprovechamiento hidroeléctrico", "central hidroeléctrica", "refrigeración industrial", "energía geotérmica", "uso industrial" |
+| VIA_PEC | Vía pecuaria - ocupación o modificación | "vía pecuaria", "cañada real", "cordel", "vereda", "colada" — incluso en el nombre del proyecto |
+| MON | Monte de utilidad pública / dominio forestal | "monte de utilidad pública", "dominio público forestal", "ocupación de monte" con expediente forestal |
+| ESP_NAT | Espacio natural protegido / Red Natura | "parque natural", "parque nacional", "Red Natura 2000", "ZEPA", "ZEC", "reserva de la biosfera", "LIC" |
+| RES | Gestión de residuos | "gestión de residuos", "tratamiento de residuos", "planta de residuos", "vertedero", "autorización ambiental" de instalación de residuos, IIA de planta de residuos, almacenamiento/descontaminación de vehículos |
+| VER | Vertidos de aguas residuales | "autorización de vertido", "solicitud de autorización de vertido", "vertido de aguas residuales", "canon de control de vertidos", "depuración de aguas residuales" |
+| PHD | Plan hidrológico de demarcación | "plan hidrológico", "demarcación hidrográfica", "ciclo de planificación hídrica" |
+
+## Subcategorías N3
+**Uso del agua** (solo si hay señal explícita):
+- uso_agricola - riego, regadío, agricultura
+- uso_urbano - abastecimiento municipal, agua potable, abastecimiento hídrico
+- uso_industrial - industria, refrigeración, proceso productivo
+- uso_energetico - central hidroeléctrica, aprovechamiento energético, geotérmica
+- uso_mixto - varios usos simultáneos en el mismo expediente
+
+**Cuenca hidrográfica** (inferir desde el organismo emisor o la provincia/comunidad mencionada):
+- cuenca_guadalquivir - CHG / Andalucía, Jaén, Córdoba, Sevilla, Huelva, Cádiz, Granada, Almería
+- cuenca_duero - CHD / Castilla y León, Zamora, Valladolid, Salamanca, Ávila, Burgos, Palencia
+- cuenca_guadiana - CHGu / Extremadura, Ciudad Real, Badajoz
+- cuenca_ebro - CHE / Aragón, Navarra, La Rioja, Huesca, Zaragoza, Teruel, Cataluña occidental
+- cuenca_tajo - CHT / Madrid, Toledo, Cáceres, Guadalajara
+- cuenca_jucar - CHJ / Comunitat Valenciana, Albacete, Cuenca, Castellón
+- cuenca_cantabrico - CHC / Asturias, Cantabria, País Vasco, Gipuzkoa, Bizkaia
+- cuenca_mino_sil - CHMS / Galicia interior, Lugo, Ourense, León occidental, Pontevedra
+- cuenca_segura - CHS / Murcia, Alicante sur, Albacete sur
+- cuenca_insular - Consejo Insular de Aguas / Canarias, Baleares
+
+## Reglas críticas
+
+1. is_relevant=True si y solo si identificas al menos una categoría N2.
+
+2. AGU_GEN es residual: usar cuando el texto menciona DPH o concesión de aguas SIN especificar
+   uso. NUNCA combinar AGU_GEN con AGU_RIE, AGU_ABS, AGU_IND, VER, MON ni VIA_PEC en el
+   mismo registro, salvo que haya un expediente de agua independiente en el mismo texto.
+
+3. AGU_SND requiere que "captación", "sondeo" o "pozo" aparezcan EXPLÍCITAMENTE en el texto.
+   "Concesión de aguas subterráneas" sin estas palabras = AGU_GEN (no AGU_SND).
+   AGU_SND SÍ puede combinarse con AGU_RIE o AGU_ABS cuando el texto especifica tanto la
+   captación como el uso: "captación de aguas subterráneas para riego" → [AGU_SND, AGU_RIE].
+
+4. ESP_NAT requiere señal EXPLÍCITA: "parque natural/nacional", "ZEPA", "ZEC", "Red Natura",
+   "LIC", "reserva de la biosfera". NO activan ESP_NAT:
+   - "Dirección General de Sostenibilidad" o "Medio Natural"
+   - Canarias, islas, "Consejo Insular" (la ubicación insular no implica parque)
+   - Vías pecuarias, montes de utilidad pública, centrales hidroeléctricas
+   - "natural" o "ambiental" en cualquier otro contexto
+
+5. RES se aplica a TODA gestión de residuos: autorizaciones ambientales de instalaciones de
+   residuos, IIA (informes de impacto ambiental) de plantas de residuos, tratamiento de
+   vehículos fuera de uso, almacenamiento de residuos. No requiere que sea una "concesión".
+
+6. VER se activa con "autorización de vertido" o "solicitud de autorización de vertido" aunque
+   no mencione explícitamente "aguas residuales". No son VER: autorizaciones de uso del cauce
+   (apicultura, tala, obras) sin mención de vertido → esas son AGU_GEN.
+
+7. Las convocatorias de asambleas y juntas de comunidades de regantes = AGU_RIE.
+
+8. VIA_PEC se activa si "cañada", "cordel", "vereda" o "colada" aparecen en cualquier parte
+   del texto, incluso en el nombre del proyecto.
+
+9. PHD aplica solo a planes de demarcación, nunca a concesiones individuales.
+
+10. MON requiere "monte de utilidad pública" o "dominio público forestal" explícitos.
+
+11. reasoning debe citar el fragmento exacto del texto que dispara cada etiqueta.
+""".strip()
+
+
 # -- Alias conveniente ---------------------------------------------------------
-LATEST_PROMPT = SYSTEM_PROMPT_B1_V2
+LATEST_PROMPT = SYSTEM_PROMPT_B1_V3
 
 PROMPT_REGISTRY = {
     "v1": SYSTEM_PROMPT_B1_V1,
     "v2": SYSTEM_PROMPT_B1_V2,
+    "v3": SYSTEM_PROMPT_B1_V3,
 }
