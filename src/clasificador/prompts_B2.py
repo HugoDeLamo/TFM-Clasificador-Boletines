@@ -4,13 +4,14 @@ Versiones del system prompt del clasificador B2 - Urbanístico.
 Historial:
 - V1: Baseline zero-shot. Tabla N2 con señales lexicas, tabla N3 fase y uso,
       5 reglas criticas basicas.
-- V2: Añade tabla de equivalencias regionales (POUM=PGOU, POM=PGOU, PXOM=PGOU,
-      PGM=PGOU, NNSS=PGOU, NUM=PGOU), regla EMOT navarro, lista ampliada de
-      falsos positivos.
-- V3: Añade reglas de frontera: MOD_PUN≠PGOU, DIC_INT≠DUP(B0), LIC_URB con
-      renovables en suelo rustico, PLAN_ESP≠PGOU.
-- V4: Few-shot con 5 ejemplos de los casos mas dificiles (MOD_PUN, PGOU variante
-      regional, LIC_URB solar, falso positivo universidad, EMOT navarro).
+- V2: Corrige 4 errores sistematicos del Exp 1: (1) PGOU spurious cuando el acto
+      es MOD_PUN/PROY_URB/PLAN_ESP que solo referencia el plan — regla de exclusion
+      mutua; (2) DIC_INT spurious en bocyl — DIC_INT exclusivo de dogv/Valencia;
+      (3) DUP energetica ≠ DIC_INT; (4) PROY_URB incluye actos sancionadores y de
+      legalidad por parcelacion urbanistica ilegal.
+- V3: Few-shot con 3 ejemplos quirurgicos: MOD_PUN sin PGOU, LIC_URB bocyl sin
+      DIC_INT, DIC_INT dogv sin LIC_URB.
+- V4: (desactivado — supera ventana de contexto de Gemma)
 """
 
 # -- V1 - Baseline zero-shot ---------------------------------------------------
@@ -69,218 +70,91 @@ Asignar solo si hay señal explícita:
 """.strip()
 
 
-# -- V2 - Variantes regionales -------------------------------------------------
+# -- V2 - Correcciones post Exp 1 ---------------------------------------------
 
 SYSTEM_PROMPT_B2_V2 = """
 Eres un experto en clasificación de publicaciones de boletines oficiales españoles.
-Tu tarea es analizar la descripción de una publicación del dominio urbanístico,
-y asignarle etiquetas según la taxonomía definida.
+Tu tarea es analizar la descripción de una publicación del dominio urbanístico.
 
 ## Dominio
-Las publicaciones relevantes son aquellas relacionadas con planeamiento urbanístico,
-licencias de uso del suelo y declaraciones de interés en suelo rústico.
-Son is_relevant=False:
-- Planes de estudios universitarios o educativos
-- Planes de emergencias o protección civil
-- Planes estratégicos sin contenido urbanístico
-- Planes de acción territorial sin urbanismo
-- Plan de ordenación de recursos naturales (es dominio hídrico/natural, no urbanístico)
-- Plan director de infraestructuras sin urbanismo
-- Presupuestos municipales, RRHH, empleo público, contratación pública
+Son is_relevant=False: planes de estudios universitarios, planes de emergencias,
+planes estratégicos sin urbanismo, presupuestos, RRHH, contratación pública,
+licencias de actividad comercial sin trámite urbanístico.
 
 ## Categorías N2
-| Etiqueta | Descripción | Señales léxicas clave |
-|----------|-------------|----------------------|
-| PGOU | Plan General de Ordenación Urbana y equivalentes regionales | "plan general de ordenación", "PGOU", "POUM", "POM", "PXOM", "PGOM", "PGM", "normas subsidiarias", "normas urbanísticas municipales", "NUM" |
-| PLAN_ESP | Plan Parcial / Plan Especial / Estudio de Detalle | "plan parcial", "plan especial", "estudio de detalle" |
-| MOD_PUN | Modificación puntual de planeamiento urbanístico | "modificación puntual", "modificación del plan general", "modificación de las normas subsidiarias", "modificación de las normas urbanísticas" |
-| PROY_URB | Proyecto de urbanización / reparcelación / parcelación | "proyecto de urbanización", "reparcelación", "parcelación", "unidad de ejecución" |
-| LIC_URB | Licencia urbanística / autorización de uso excepcional | "licencia urbanística", "autorización de uso excepcional", "calificación urbanística", "actuación específica de interés público", "usos y actividades admisibles en suelo rústico" |
-| DIC_INT | Declaración de interés comunitario / utilidad e interés social | "declaración de interés comunitario", "declaración de utilidad e interés social", "uso de interés general" |
+| Etiqueta | Señales |
+|----------|---------|
+| PGOU | aprobación o revisión del plan general COMPLETO: "plan general de ordenación", "PGOU", "POUM", "POM", "PXOM", "PGM", "normas subsidiarias", "normas urbanísticas municipales", "EMOT" |
+| PLAN_ESP | "plan parcial", "plan especial", "estudio de detalle" |
+| MOD_PUN | "modificación puntual", "modificación del plan general", "modificación de las normas subsidiarias", "modificación de las normas urbanísticas" |
+| PROY_URB | "proyecto de urbanización", "reparcelación", "parcelación", "unidad de ejecución", parcelaciones ilegales |
+| LIC_URB | "licencia urbanística", "autorización de uso excepcional", "calificación urbanística", "actuación específica de interés público en suelo no urbanizable" |
+| DIC_INT | "declaración de interés comunitario", "declaración de utilidad e interés social" — SOLO en Comunitat Valenciana (DOGV) |
 
-## Equivalencias regionales de PGOU
-Los planes generales municipales reciben diferentes nombres según la comunidad autónoma.
-Todos equivalen a PGOU:
-| Sigla | Nombre completo | Comunidad |
-|-------|----------------|-----------|
-| POUM | Pla d'Ordenació Urbanística Municipal | Cataluña |
-| POM | Plan de Ordenación Municipal | Castilla-La Mancha |
-| PXOM | Plan Xeral de Ordenación Municipal | Galicia |
-| PGOM | Plan General de Ordenación Municipal | varias |
-| PGM | Plan General Municipal | Navarra |
-| NNSS | Normas Subsidiarias de Planeamiento | varias |
-| NUM | Normas Urbanísticas Municipales | varias |
-| EMOT | Estrategia y Modelo de Ordenación del Territorio | Navarra (fase previa al PGM) |
-
-## Subcategorías N3 — Fase del ciclo urbanístico
-Asignar solo si hay señal explícita:
-- fase_avance - "avance del plan", "EMOT", "criterios y objetivos generales"
-- fase_ip - "información pública", "exposición pública", "período de consultas"
-- fase_inicial - "aprobación inicial", "aprobado inicialmente"
-- fase_provisional - "aprobación provisional", "aprobado provisionalmente"
-- fase_definitiva - "aprobación definitiva", "aprobado definitivamente", "entrada en vigor"
-- fase_correccion - "corrección de errores", "corrección de erratas"
-
-## Subcategorías N3 — Uso del suelo
-Asignar solo si hay señal explícita:
-- uso_residencial - "vivienda", "residencial", "unifamiliar", "plurifamiliar"
-- uso_industrial - "industrial", "polígono industrial", "nave industrial"
-- uso_equipamiento - "equipamiento", "dotacional", "escuela", "centro de salud"
-- uso_rustico - "suelo rústico", "suelo no urbanizable", "uso excepcional en suelo rústico"
-- uso_energetico - "fotovoltaica", "eólica", "solar", "aerogenerador", "energía renovable"
-- uso_comercial - "comercial", "local comercial", "centro comercial"
-
-## Reglas críticas
-1. is_relevant=True si y solo si identificas al menos una categoría N2
-2. EMOT navarro = PGOU + fase_avance (es la fase previa obligatoria al PGM en Navarra)
-3. POUM, POM, PXOM, PGOM, PGM, NNSS, NUM → todos = PGOU
-4. Un registro puede tener múltiples etiquetas N2 simultáneamente
-5. Las modificaciones y correcciones de errores heredan la etiqueta del acto original
-6. Los anuncios de información pública son tan relevantes como las resoluciones
-7. reasoning debe citar el fragmento exacto del texto que dispara cada etiqueta
-""".strip()
-
-
-# -- V3 - Reglas de frontera ---------------------------------------------------
-
-SYSTEM_PROMPT_B2_V3 = """
-Eres un experto en clasificación de publicaciones de boletines oficiales españoles.
-Tu tarea es analizar la descripción de una publicación del dominio urbanístico,
-y asignarle etiquetas según la taxonomía definida.
-
-## Dominio
-Las publicaciones relevantes son aquellas relacionadas con planeamiento urbanístico,
-licencias de uso del suelo y declaraciones de interés en suelo rústico.
-Son is_relevant=False:
-- Planes de estudios universitarios o educativos
-- Planes de emergencias o protección civil
-- Planes estratégicos sin contenido urbanístico
-- Planes de acción territorial sin urbanismo
-- Plan de ordenación de recursos naturales (dominio hídrico/natural)
-- Plan director de infraestructuras sin urbanismo
-- Presupuestos municipales, RRHH, empleo público, contratación pública
-
-## Categorías N2
-| Etiqueta | Descripción | Señales léxicas clave |
-|----------|-------------|----------------------|
-| PGOU | Plan General de Ordenación Urbana y equivalentes regionales | "plan general de ordenación", "PGOU", "POUM", "POM", "PXOM", "PGOM", "PGM", "normas subsidiarias", "normas urbanísticas municipales", "NUM", "EMOT" |
-| PLAN_ESP | Plan Parcial / Plan Especial / Estudio de Detalle | "plan parcial", "plan especial", "estudio de detalle" |
-| MOD_PUN | Modificación puntual de planeamiento urbanístico | "modificación puntual", "modificación del plan general", "modificación de las normas subsidiarias", "modificación de las normas urbanísticas" |
-| PROY_URB | Proyecto de urbanización / reparcelación / parcelación | "proyecto de urbanización", "reparcelación", "parcelación", "unidad de ejecución" |
-| LIC_URB | Licencia urbanística / autorización de uso excepcional | "licencia urbanística", "autorización de uso excepcional", "calificación urbanística", "actuación específica de interés público", "usos y actividades admisibles en suelo rústico", "autorización de actividades en suelo no urbanizable" |
-| DIC_INT | Declaración de interés comunitario / utilidad e interés social | "declaración de interés comunitario", "declaración de utilidad e interés social", "uso de interés general" |
-
-## Equivalencias regionales de PGOU
-| Sigla | Nombre | Comunidad |
-|-------|--------|-----------|
-| POUM | Pla d'Ordenació Urbanística Municipal | Cataluña |
-| POM | Plan de Ordenación Municipal | Castilla-La Mancha |
-| PXOM | Plan Xeral de Ordenación Municipal | Galicia |
-| PGM | Plan General Municipal | Navarra |
-| NNSS | Normas Subsidiarias | varias |
-| NUM | Normas Urbanísticas Municipales | varias |
-| EMOT | Estrategia y Modelo de Ordenación del Territorio | Navarra (fase previa al PGM) |
-
-## Subcategorías N3 — Fase del ciclo urbanístico
-- fase_avance - "avance del plan", "EMOT", "criterios y objetivos generales"
-- fase_ip - "información pública", "exposición pública", "período de consultas"
-- fase_inicial - "aprobación inicial", "aprobado inicialmente"
-- fase_provisional - "aprobación provisional", "aprobado provisionalmente"
-- fase_definitiva - "aprobación definitiva", "aprobado definitivamente", "entrada en vigor"
-- fase_correccion - "corrección de errores", "corrección de erratas"
-
-## Subcategorías N3 — Uso del suelo
-- uso_residencial - "vivienda", "residencial", "unifamiliar", "plurifamiliar"
-- uso_industrial - "industrial", "polígono industrial", "nave industrial"
-- uso_equipamiento - "equipamiento", "dotacional", "escuela", "centro de salud"
-- uso_rustico - "suelo rústico", "suelo no urbanizable", "uso excepcional en suelo rústico"
-- uso_energetico - "fotovoltaica", "eólica", "solar", "aerogenerador", "energía renovable"
-- uso_comercial - "comercial", "local comercial", "centro comercial"
+## Subcategorías N3
+Fase: fase_avance · fase_ip · fase_inicial · fase_provisional · fase_definitiva · fase_correccion
+Uso: uso_residencial · uso_industrial · uso_equipamiento · uso_rustico · uso_energetico · uso_comercial
 
 ## Reglas críticas
 
-1. is_relevant=True si y solo si identificas al menos una categoría N2.
+1. **MOD_PUN excluye PGOU**: si el texto dice "modificación puntual" del plan general,
+   asignar SOLO MOD_PUN. El texto menciona el plan como referencia, no como objeto.
+   PGOU solo si se aprueba o revisa el plan general COMPLETO.
 
-2. MOD_PUN ≠ PGOU: "modificación puntual del PGOU" → MOD_PUN, NUNCA PGOU.
-   PGOU solo para aprobación, revisión o exposición pública del plan completo.
-   MOD_PUN hereda la etiqueta del plan que modifica (pero la etiqueta es siempre MOD_PUN).
+2. **PLAN_ESP excluye PGOU**: "estudio de detalle", "plan parcial" o "plan especial"
+   -> SOLO PLAN_ESP aunque mencionen el PGOU o las NNSS como marco.
 
-3. PLAN_ESP ≠ PGOU: Plan Especial, Plan Parcial y Estudio de Detalle son siempre
-   PLAN_ESP aunque el texto mencione el PGOU como referencia o marco.
+3. **PROY_URB excluye PGOU**: "proyecto de urbanización" o "reparcelación" que cita
+   las NNSS/NUM/PGOU como referencia -> SOLO PROY_URB.
 
-4. EMOT navarro = PGOU + fase_avance (es la fase previa obligatoria al PGM en Navarra).
+4. **DIC_INT es exclusivo de la Comunitat Valenciana (DOGV)**. En Castilla y León
+   (bocyl) y otras CCAA, "autorización de uso excepcional de suelo rústico" = LIC_URB.
 
-5. POUM, POM, PXOM, PGOM, PGM, NNSS, NUM → todos = PGOU.
+5. **"Declaración de utilidad pública" energética ≠ DIC_INT**. La DUP de proyectos
+   fotovoltaicos/eólicos es un trámite B0 (energético), no DIC_INT urbanístico.
 
-6. DIC_INT ≠ DUP (B0): La Declaración de Interés Comunitario es autonómica (Comunitat
-   Valenciana principalmente) y urbanística. La Declaración de Utilidad Pública (DUP)
-   es estatal y energética. Si el texto no menciona "interés comunitario" o "interés
-   social" en contexto urbanístico, no asignar DIC_INT.
+6. **PROY_URB incluye actos de legalidad urbanística**: procedimientos sancionadores
+   por parcelación ilegal, requerimientos de restablecimiento de legalidad territorial
+   por parcelación urbanística -> PROY_URB.
 
-7. LIC_URB en suelo rústico para renovables: "autorización de uso excepcional de suelo
-   rústico para instalación solar/eólica" = LIC_URB + uso_energetico + uso_rustico.
-   No añadir etiquetas de B0 (AAP, AAC, DIA, etc.) aunque el proyecto sea energético.
+7. EMOT navarro = PGOU + fase_avance. POUM/POM/PXOM/PGM/NNSS/NUM = PGOU.
 
-8. Un registro puede tener múltiples etiquetas N2 simultáneamente.
+8. LIC_URB en suelo rústico para solar/eólica = LIC_URB + uso_energetico + uso_rustico.
+   No añadir etiquetas de B0 (AAP, AAC) aunque el proyecto sea energético.
 
-9. Las modificaciones y correcciones de errores heredan la etiqueta del acto original.
-
-10. Los anuncios de información pública son tan relevantes como las resoluciones.
-
-11. reasoning debe citar el fragmento exacto del texto que dispara cada etiqueta.
+9. reasoning debe citar el fragmento exacto que dispara cada etiqueta.
 """.strip()
 
 
-# -- V4 - Few-shot -------------------------------------------------------------
+# -- V3 - Few-shot (3 ejemplos quirurgicos) ------------------------------------
 
-SYSTEM_PROMPT_B2_V4 = SYSTEM_PROMPT_B2_V3 + """
+SYSTEM_PROMPT_B2_V3 = SYSTEM_PROMPT_B2_V2 + """
 
 ## Ejemplos
 
-**Ejemplo 1 — MOD_PUN (nunca PGOU aunque mencione el plan general)**
-Texto: "Resolución del Ayuntamiento de Torrelodones por la que se aprueba definitivamente la modificación puntual número 3 del Plan General de Ordenación Urbana, relativa al cambio de uso de suelo en la parcela 12 del polígono 4."
-Respuesta:
-- is_relevant: true
-- categories: ["MOD_PUN"]
-- subcategories: ["fase_definitiva"]
-- reasoning: "'modificación puntual número 3 del Plan General' → MOD_PUN. Aunque menciona el PGOU, es una modificación puntual, no una aprobación del plan completo. 'aprueba definitivamente' → fase_definitiva."
+**Ejemplo 1 — MOD_PUN: menciona el PGOU pero NO es PGOU**
+Texto: "Acuerdo del Ayuntamiento de Palencia por el que se aprueba definitivamente la modificación puntual del Plan General de Ordenación Urbana de Palencia, en el ámbito de la ficha n.º 6, zona de Ordenanza Terciario."
+-> categories: ["MOD_PUN"], subcategories: ["fase_definitiva","uso_comercial"]
+Clave: "modificación puntual" -> SOLO MOD_PUN, nunca PGOU. El PGOU es el objeto modificado, no el acto.
 
-**Ejemplo 2 — PGOU con variante regional catalana (POUM)**
-Texto: "Edicte de l'Ajuntament de Ripollet pel qual se sotmet a informació pública l'aprovació inicial del Pla d'Ordenació Urbanística Municipal (POUM) del municipi."
-Respuesta:
-- is_relevant: true
-- categories: ["PGOU"]
-- subcategories: ["fase_inicial"]
-- reasoning: "'Pla d'Ordenació Urbanística Municipal (POUM)' es equivalente regional de PGOU en Cataluña. 'aprovació inicial' → fase_inicial."
+**Ejemplo 2 — LIC_URB en Castilla y León: NO es DIC_INT**
+Texto: "INFORMACIÓN pública relativa a la solicitud de autorización de uso excepcional de suelo rústico y licencia urbanística, para la instalación de fibra óptica subterránea, en el término municipal de Fuentes de Valdepero (Palencia)."
+-> categories: ["LIC_URB"], subcategories: ["fase_ip","uso_rustico"]
+Clave: "autorización de uso excepcional de suelo rústico" en bocyl (Castilla y León) = LIC_URB. DIC_INT solo existe en la Comunitat Valenciana (DOGV).
 
-**Ejemplo 3 — LIC_URB con instalación solar en suelo rústico**
-Texto: "Anuncio de información pública relativo a la solicitud de autorización de uso excepcional de suelo rústico y licencia urbanística, promovida por Energía Solar S.L., para la instalación de una planta solar fotovoltaica de 5 MW en el término municipal de Villarrobledo (Albacete)."
-Respuesta:
-- is_relevant: true
-- categories: ["LIC_URB"]
-- subcategories: ["uso_energetico", "uso_rustico"]
-- reasoning: "'autorización de uso excepcional de suelo rústico y licencia urbanística' → LIC_URB. 'planta solar fotovoltaica' → uso_energetico. 'suelo rústico' → uso_rustico. No se asignan etiquetas de B0 aunque el proyecto sea energético."
-
-**Ejemplo 4 — Falso positivo: plan de estudios universitario**
-Texto: "Resolución de la Universidad Autónoma de Madrid por la que se aprueba la modificación del plan de estudios del Grado en Derecho conforme al Real Decreto 822/2021."
-Respuesta:
-- is_relevant: false
-- categories: []
-- subcategories: []
-- reasoning: "'modificación del plan de estudios del Grado en Derecho' es un plan académico universitario, no planeamiento urbanístico. No contiene ninguna categoría N2."
-
-**Ejemplo 5 — EMOT navarro (fase previa al PGM)**
-Texto: "Anuncio del Ayuntamiento de Olite por el que se somete a información pública la Estrategia y Modelo de Ordenación del Territorio (EMOT) del municipio de Olite, como documento previo a la elaboración del Plan General Municipal."
-Respuesta:
-- is_relevant: true
-- categories: ["PGOU"]
-- subcategories: ["fase_avance"]
-- reasoning: "'Estrategia y Modelo de Ordenación del Territorio (EMOT)' es la fase previa obligatoria al PGM navarro → PGOU. 'información pública' del documento EMOT → fase_avance (criterios y objetivos generales previos al plan)."
+**Ejemplo 3 — DIC_INT en Valencia: NO es LIC_URB**
+Texto: "ANUNCIO por el que se somete a información pública la declaración de interés comunitario para una atribución de uso y aprovechamiento en suelo no urbanizable, para actividad de centro deportivo en la parcela 44, del polígono 15, del término municipal de Mutxamel."
+-> categories: ["DIC_INT"], subcategories: ["fase_ip","uso_equipamiento","uso_rustico"]
+Clave: "declaración de interés comunitario" en dogv (Comunitat Valenciana) = DIC_INT. No es LIC_URB.
 """
 
 
+# -- V4 - alias de V3 (V4 anterior demasiado largo para Gemma) -----------------
+SYSTEM_PROMPT_B2_V4 = SYSTEM_PROMPT_B2_V3
+
+
 # -- Alias conveniente ---------------------------------------------------------
-LATEST_PROMPT_B2 = SYSTEM_PROMPT_B2_V4
+LATEST_PROMPT_B2 = SYSTEM_PROMPT_B2_V3
 
 PROMPT_REGISTRY_B2 = {
     "v1": SYSTEM_PROMPT_B2_V1,
