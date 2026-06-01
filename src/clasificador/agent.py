@@ -216,17 +216,14 @@ async def run_experiment(
                 pred = await clasificar_async(row["description"], row["bulletin"], agent, use_n1_context)
             except ModelHTTPError as e:
                 if e.status_code == 400:
-                    # Descripcion demasiado larga para la ventana de contexto del modelo
                     print(f"\n  [SKIP] context overflow: {row['description'][:80]!r}")
-                    pred = {"error": "context_overflow"}
+                    pred = {"is_relevant_pred": False, "error": "context_overflow"}
                 else:
-                    # Otros errores HTTP: registrar y continuar
                     print(f"\n  [ERROR] HTTP {e.status_code}: {e}")
-                    pred = {"error": f"http_{e.status_code}"}
+                    pred = {"is_relevant_pred": False, "error": f"http_{e.status_code}"}
             except Exception as e:
-                # Errores de conexion u otros inesperados: registrar y continuar
                 print(f"\n  [ERROR] {type(e).__name__}: {e}")
-                pred = {"error": type(e).__name__}
+                pred = {"is_relevant_pred": False, "error": type(e).__name__}
             pred["duration_s"] = round(time.perf_counter() - t0, 3)
             result = {**row.to_dict(), **pred}
             # Guardar inmediatamente tras cada fila para sobrevivir cortes de conexion
