@@ -8,12 +8,38 @@ de config.py aplicada. Ninguna toca disco ni Streamlit.
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
+import plotly.io as pio
 
 from dashboard import config
 
+# -- Template Plotly propio --------------------------------------------------------
+# Fondo transparente (hereda la tarjeta blanca), grid punteado, paleta de config,
+# leyenda horizontal arriba a la derecha sin caja.
+pio.templates["tfm"] = go.layout.Template(
+    layout=dict(
+        font=dict(family="Source Sans 3, Source Sans Pro, sans-serif",
+                  color=config.COLOR_TEXTO),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        colorway=config.PALETA_CATEGORICA,
+        margin=dict(l=36, r=16, t=36, b=36),
+        xaxis=dict(gridcolor=config.COLOR_BORDE_TARJETA, griddash="dot",
+                   zeroline=False, linecolor=config.COLOR_BORDE_TARJETA),
+        yaxis=dict(gridcolor=config.COLOR_BORDE_TARJETA, griddash="dot",
+                   zeroline=False, linecolor=config.COLOR_BORDE_TARJETA),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02,
+                    xanchor="right", x=1, bgcolor="rgba(0,0,0,0)",
+                    borderwidth=0),
+        hoverlabel=dict(font_family="Source Sans 3, sans-serif"),
+    )
+)
+
+# Pasar a st.plotly_chart(..., config=PLOTLY_CONFIG) en todas las vistas
+PLOTLY_CONFIG = {"displayModeBar": False}
+
 
 def _tema(fig: go.Figure, titulo: str | None = None) -> go.Figure:
-    fig.update_layout(**config.PLOTLY_LAYOUT)
+    fig.update_layout(template="tfm")
     if titulo:
         fig.update_layout(title=titulo)
     return fig
@@ -21,21 +47,139 @@ def _tema(fig: go.Figure, titulo: str | None = None) -> go.Figure:
 
 # -- Explorador -----------------------------------------------------------------
 
+# Etiquetas legibles para el anillo de bloques: "B0 ambiental-energético" -> "B0"
+_BLOQUE_A_ID = {
+    "B0 ambiental-energético": "B0",
+    "B1 hídrico-natural": "B1",
+    "B2 urbanístico": "B2",
+    "B3 subvenciones": "B3",
+    "B4 contratación": "B4",
+}
+
+
+def _agregar_minoritarios(df: pd.DataFrame, col: str, padre_cols: list[str]) -> pd.DataFrame:
+    """Agrupa en 'otros (n)' los valores de `col` que pesan menos de
+    config.UMBRAL_OTROS_SUNBURST respecto a su padre."""
+    df = df.copy()
+    if padre_cols:
+        total_padre = df.groupby(padre_cols)["count"].transform("sum")
+    else:
+        total_padre = df["count"].sum()
+    share = df["count"] / total_padre
+    minor = share < config.UMBRAL_OTROS_SUNBURST
+    if minor.any():
+        grupos = padre_cols if padre_cols else []
+        n_minor = (
+            df[minor].groupby(grupos)[col].transform("nunique")
+            if grupos else df.loc[minor, col].nunique()
+        )
+        df.loc[minor, col] = (
+            "otros (" + n_minor.astype(str) + ")" if grupos
+            else f"otros ({n_minor})"
+        )
+        df = df.groupby(padre_cols + [col], as_index=False)["count"].sum() if padre_cols \
+            else df.groupby([col], as_index=False)["count"].sum()
+    return df
+
+
 def fig_sunburst_taxonomia(df: pd.DataFrame) -> go.Figure:
-    """Sunburst N0 -> N1 -> bloque con volúmenes reales.
+    """Sunburst N0 -> N1 -> bloque, legible: minoritarios agrupados en gris,
+    drill-down real (maxdepth=2), texto solo donde cabe y hover completo.
 
     df: columnas n0, n1, bloque, count.
     """
+    total = df["count"].sum()
+
+    # Agregacion de minoritarios nivel a nivel
+    nivel2 = _agregar_minoritarios(
+        df.groupby(["n0", "n1"], as_index=False)["count"].sum(), "n1", ["n0"]
+    )
+    # bloque dentro de (n0, n1): primero re-mapear n1 minoritarios igual que nivel2
+    df3 = df.copy()
+    mapa_n1 = {}
+    for n0 in df["n0"].unique():
+        originales = df[df["n0"] == n0].groupby("n1")["count"].sum()
+        agrupados = set(nivel2[nivel2["n0"] == n0]["n1"])
+        for n1 in originales.index:
+            mapa_n1[(n0, n1)] = n1 if n1 in agrupados else next(
+                a for a in agrupados if a.startswith("otros")
+            )
+    df3["n1"] = [mapa_n1[(a, b)] for a, b in zip(df3["n0"], df3["n1"])]
+    nivel3 = _agregar_minoritarios(
+        df3.groupby(["n0", "n1", "bloque"], as_index=False)["count"].sum(),
+        "bloque", ["n0", "n1"],
+    )
+
+    # La jerarquia la construye plotly.express (consistencia garantizada de
+    # branchvalues); despues se recolorean los sectores por sus ids.
     fig = px.sunburst(
-        df,
+        nivel3,
         path=["n0", "n1", "bloque"],
         values="count",
-        color="n0",
-        color_discrete_sequence=config.PALETA_AZULES,
         maxdepth=2,
     )
-    fig.update_traces(textinfo="label+percent root", insidetextorientation="radial")
-    fig.update_layout(height=560)
+
+    azules_n0 = {n0: config.PALETA_AZULES[i % len(config.PALETA_AZULES)]
+                 for i, n0 in enumerate(sorted(df["n0"].unique()))}
+
+    def _color_nodo(nid: str) -> str:
+        partes = str(nid).split("/")
+        hoja = partes[-1]
+        if hoja.startswith("otros") or hoja == "sin bloque":
+            return config.COLOR_GRIS_OTROS
+        if len(partes) == 1:  # anillo N0
+            return azules_n0.get(hoja, config.COLOR_PRIMARIO)
+        if len(partes) == 2:  # anillo N1
+            return "#74a9cf"
+        bloque_id = _BLOQUE_A_ID.get(hoja)  # anillo de bloques
+        return config.COLORES_BLOQUE.get(bloque_id, "#a6bddb")
+
+    tr = fig.data[0]
+    tr.marker.colors = [_color_nodo(i) for i in tr.ids]
+    tr.marker.line = dict(color="#ffffff", width=1.5)
+    fig.update_traces(
+        textinfo="label+percent parent",
+        insidetextorientation="radial",
+        hovertemplate=(
+            "<b>%{label}</b><br>"
+            "%{value:,.0f} publicaciones<br>"
+            "%{percentParent:.1%} de su nivel superior<br>"
+            "%{percentRoot:.1%} del total"
+            "<extra></extra>"
+        ),
+    )
+    fig.update_layout(
+        height=560,
+        uniformtext=dict(minsize=11, mode="hide"),
+        margin=dict(l=8, r=8, t=8, b=8),
+    )
+    return _tema(fig)
+
+
+def fig_barras_nivel(df: pd.DataFrame, nivel: str) -> go.Figure:
+    """Panel companion del sunburst: desglose COMPLETO del nivel elegido
+    (n0 / n1 / bloque), sin agrupar, ordenado por volumen.
+
+    df: corpus de conteos con columnas n0, n1, bloque, count.
+    """
+    agg = df.groupby(nivel, as_index=False)["count"].sum().sort_values("count")
+    if nivel == "bloque":
+        colores = [
+            config.COLORES_BLOQUE.get(_BLOQUE_A_ID.get(str(v), ""), config.COLOR_GRIS_OTROS)
+            for v in agg[nivel]
+        ]
+    else:
+        colores = [config.COLOR_PRIMARIO] * len(agg)
+    fig = go.Figure(go.Bar(
+        x=agg["count"], y=agg[nivel], orientation="h",
+        marker_color=colores,
+        hovertemplate="<b>%{y}</b><br>%{x:,.0f} publicaciones<extra></extra>",
+    ))
+    fig.update_layout(
+        height=560,
+        xaxis_title="Publicaciones",
+        yaxis_title="",
+    )
     return _tema(fig)
 
 

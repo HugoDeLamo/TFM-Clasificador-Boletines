@@ -18,7 +18,10 @@ for p in (str(ROOT), str(ROOT / "src")):
 
 import streamlit as st
 
-from dashboard import config, data_loader, charts, llm
+from dashboard import config, data_loader, charts, llm, theme  # noqa: F401
+
+theme.inject_css()
+
 from clasificador.agent import (
     get_ambito,
     inferir_act_type,
@@ -26,20 +29,14 @@ from clasificador.agent import (
     _N1_MAP,
 )
 
-# Colores que la especificacion de esta vista fija explicitamente
-# (badge de relevancia y chip de lista vacia); el resto sale de config.
-_VERDE_RELEVANTE = config.COLOR_BADGE_RELEVANTE
+# Chip placeholder para listas vacias; el resto de colores sale de config/theme.
 _GRIS_CHIP = config.COLOR_CHIP_VACIO
+
+# Retraso entre chips de la cascada de entrada (ms)
+_CASCADA_MS = 80
 
 
 # -- Helpers --------------------------------------------------------------------
-
-def _chip(texto: str, color: str) -> str:
-    return (
-        f'<span style="background:{color};color:white;border-radius:12px;'
-        f'padding:3px 12px;margin:4px;display:inline-block;'
-        f'font-size:0.85rem;">{texto}</span>'
-    )
 
 
 def _resultado_cacheado(descripcion: str) -> dict | None:
@@ -50,78 +47,95 @@ def _resultado_cacheado(descripcion: str) -> dict | None:
     return None
 
 
-def _render_resultado(resultado: dict) -> None:
+def _es_caso_trampa(descripcion: str) -> bool:
+    """True si es el caso trampa de la concesion demanial portuaria (easter egg)."""
+    trampa = next(
+        (e for e in config.GALERIA_EJEMPLOS if e["id"] == "b4_demanial"), None
+    )
+    return trampa is not None and descripcion == trampa["description"]
+
+
+def _render_resultado(resultado: dict, color_bloque: str) -> None:
     """Render 100% generico sobre output_dict: no se nombran campos de listas."""
     out = resultado.get("output_dict") or {}
-    col_main, col_gauge = st.columns([3, 1])
 
-    with col_main:
-        # Badge de relevancia
-        if "is_relevant" in out:
-            if out["is_relevant"]:
-                color, texto = _VERDE_RELEVANTE, "RELEVANTE"
-            else:
-                color, texto = config.COLOR_DESTACADO, "NO RELEVANTE"
-            st.markdown(
-                f'<div style="background:{color};color:white;padding:10px 22px;'
-                f'border-radius:10px;display:inline-block;font-size:1.25rem;'
-                f'font-weight:700;letter-spacing:1px;">{texto}</div>',
-                unsafe_allow_html=True,
-            )
+    # La tarjeta del resultado lleva el borde izquierdo del color del bloque
+    st.markdown(
+        f"<style>.st-key-resultado_card div[data-testid='stVerticalBlockBorderWrapper']"
+        f"{{ border-left: 4px solid {color_bloque} !important; }}</style>",
+        unsafe_allow_html=True,
+    )
+    with st.container(border=True, key="resultado_card"):
+        col_main, col_conf = st.columns([3, 1])
 
-        # Cada campo cuyo valor sea una lista -> chips (indice global de color)
-        n_paleta = len(config.PALETA_CATEGORICA)
-        chip_idx = 0
-        for campo, valor in out.items():
-            if not isinstance(valor, list):
-                continue
-            st.caption(campo)
-            if valor:
-                html = ""
-                for v in valor:
-                    html += _chip(str(v), config.PALETA_CATEGORICA[chip_idx % n_paleta])
+        with col_main:
+            # Badge de relevancia
+            if "is_relevant" in out:
+                theme.badge_relevancia(bool(out["is_relevant"]))
+
+            # Cada campo cuyo valor sea una lista -> chips en cascada
+            chip_idx = 0
+            for campo, valor in out.items():
+                if not isinstance(valor, list):
+                    continue
+                st.caption(campo)
+                if valor:
+                    html = ""
+                    for v in valor:
+                        html += theme.chip(
+                            str(v), color_bloque, retraso_ms=chip_idx * _CASCADA_MS
+                        )
+                        chip_idx += 1
+                    st.markdown(html, unsafe_allow_html=True)
+                else:
+                    st.markdown(
+                        theme.chip("-", _GRIS_CHIP, retraso_ms=chip_idx * _CASCADA_MS),
+                        unsafe_allow_html=True,
+                    )
                     chip_idx += 1
-                st.markdown(html, unsafe_allow_html=True)
-            else:
-                st.markdown(_chip("-", _GRIS_CHIP), unsafe_allow_html=True)
 
-        # act_type como chip individual (si existe)
-        if out.get("act_type") is not None:
-            st.caption("act_type")
-            st.markdown(
-                _chip(str(out["act_type"]), config.PALETA_CATEGORICA[chip_idx % n_paleta]),
-                unsafe_allow_html=True,
+            # act_type como chip individual (si existe)
+            if out.get("act_type") is not None:
+                st.caption("act_type")
+                st.markdown(
+                    theme.chip(
+                        str(out["act_type"]), color_bloque,
+                        retraso_ms=chip_idx * _CASCADA_MS,
+                    ),
+                    unsafe_allow_html=True,
+                )
+
+        with col_conf:
+            conf = out.get("confidence")
+            if isinstance(conf, (int, float)):
+                theme.barra_confianza(float(conf), color_bloque)
+
+        if out.get("reasoning"):
+            st.info(f"💬 {out['reasoning']}")
+
+        # Pie discreto: modelo + latencia, o el origen del cache
+        if resultado.get("latencia_s") is not None:
+            st.caption(
+                f"Modelo: {resultado.get('modelo', 'desconocido')} · "
+                f"latencia: {resultado['latencia_s']} s"
             )
-
-    with col_gauge:
-        conf = out.get("confidence")
-        if isinstance(conf, (int, float)):
-            st.plotly_chart(charts.fig_gauge_confianza(float(conf)))
-
-    if out.get("reasoning"):
-        st.info(f"💬 {out['reasoning']}")
-
-    # Pie discreto: modelo + latencia, o el origen del cache
-    if resultado.get("latencia_s") is not None:
-        st.caption(
-            f"Modelo: {resultado.get('modelo', 'desconocido')} · "
-            f"latencia: {resultado['latencia_s']} s"
-        )
-    else:
-        partes = [
-            str(resultado.get("modelo") or "").strip(),
-            str(resultado.get("origen") or "").strip(),
-        ]
-        st.caption(" · ".join(p for p in partes if p))
+        else:
+            partes = [
+                str(resultado.get("modelo") or "").strip(),
+                str(resultado.get("origen") or "").strip(),
+            ]
+            st.caption(" · ".join(p for p in partes if p))
 
 
 # -- Cabecera --------------------------------------------------------------------
 
-st.title("Clasificador en vivo")
-st.caption(
-    "Pipeline jerárquico completo sobre cualquier descripción de boletín oficial: "
-    "N0 (ámbito, lookup) → N1 (tipo de acto, reglas de primer token) → "
-    "LLM (clasificación multietiqueta del bloque temático con Pydantic AI)."
+theme.hero(
+    "Clasificador en vivo",
+    "Pipeline jerárquico de 3 pasos sobre cualquier descripción de boletín oficial: "
+    "N0 resuelve el ámbito por lookup, N1 deduce el tipo de acto con reglas de primer "
+    "token y un LLM con Pydantic AI clasifica el bloque temático, con cadena de "
+    "fallback entre modelos si el principal falla.",
+    "⚡",
 )
 
 modo_demo = not llm.hay_api_keys()
@@ -136,21 +150,40 @@ if modo_demo:
             'Ejecuta "uv run python -m dashboard.precompute" para generarlo.'
         )
 
-# -- Selector de bloque y version --------------------------------------------------
+# -- Selector de bloque (tarjetas clicables) ----------------------------------------
+
+theme.seccion("Bloque temático", "🧭")
 
 bloques_ids = list(config.BLOQUES.keys())
 st.session_state.setdefault("clasificador_bloque", bloques_ids[0])
+bloque = st.session_state["clasificador_bloque"]
 
-col_bloque, col_version = st.columns([3, 1])
-with col_bloque:
-    bloque = st.radio(
-        "Bloque temático",
-        bloques_ids,
-        horizontal=True,
-        format_func=lambda k: config.BLOQUES[k]["nombre"],
-        key="clasificador_bloque",
+cols_bloques = st.columns(len(bloques_ids))
+for col, bid in zip(cols_bloques, bloques_ids):
+    with col:
+        st.markdown(
+            theme.tarjeta_bloque_html(bid, activa=(bid == bloque)),
+            unsafe_allow_html=True,
+        )
+
+        def _elegir_bloque(bid: str = bid) -> None:
+            st.session_state["clasificador_bloque"] = bid
+
+        st.button(
+            "✓ Seleccionado" if bid == bloque else "Elegir",
+            key=f"bloque_btn_{bid}",
+            on_click=_elegir_bloque,
+            use_container_width=True,
+            type="primary" if bid == bloque else "secondary",
+        )
+
+col_desc, col_version = st.columns([3, 1])
+with col_desc:
+    st.caption(
+        f"{config.ICONOS_BLOQUE.get(bloque, '')} "
+        f"**{config.BLOQUES[bloque]['nombre']}** · "
+        f"{config.BLOQUES[bloque]['descripcion']}"
     )
-    st.caption(config.BLOQUES[bloque]["descripcion"])
 with col_version:
     versiones = llm.versiones_de(bloque)
     defecto = llm.version_por_defecto(bloque)
@@ -161,11 +194,20 @@ with col_version:
         key=f"clasificador_version_{bloque}",
     )
 
+color_bloque = config.COLORES_BLOQUE[bloque]
+
 # -- Galeria de ejemplos -----------------------------------------------------------
 
-st.markdown("**Galería de ejemplos** (casos reales del ground truth)")
+theme.seccion("Ejemplos de la galería", "✨")
+st.caption(
+    "Casos reales del ground truth: pulsa uno y se rellena el formulario. "
+    "El punto de color anticipa el bloque al que pertenece."
+)
 
-_TITULOS_EJEMPLOS = {e["id"]: e["titulo"] for e in config.GALERIA_EJEMPLOS}
+_TITULOS_EJEMPLOS = {
+    e["id"]: f'{config.PUNTOS_BLOQUE.get(e["bloque"], "")} {e["titulo"]}'
+    for e in config.GALERIA_EJEMPLOS
+}
 
 
 def _aplicar_ejemplo() -> None:
@@ -200,25 +242,28 @@ else:  # fallback para versiones de Streamlit sin st.pills
 
 # -- Formulario --------------------------------------------------------------------
 
+theme.seccion("Publicación", "📝")
+
 st.session_state.setdefault("clasificar_descripcion", "")
 st.session_state.setdefault("clasificar_bulletin", config.BOLETINES[0])
 
-descripcion = st.text_area(
-    "Descripción de la publicación",
-    height=140,
-    key="clasificar_descripcion",
-    placeholder="Pega aquí el texto de una publicación o elige un ejemplo de la galería...",
-)
-col_boletin, col_boton = st.columns([2, 1], vertical_alignment="bottom")
-with col_boletin:
-    bulletin = st.selectbox(
-        "Boletín de origen",
-        config.BOLETINES,
-        format_func=lambda b: config.NOMBRE_BOLETIN.get(b, b),
-        key="clasificar_bulletin",
+with st.container(border=True):
+    descripcion = st.text_area(
+        "Descripción de la publicación",
+        height=140,
+        key="clasificar_descripcion",
+        placeholder="Pega aquí el texto de una publicación o elige un ejemplo de la galería...",
     )
-with col_boton:
-    clasificar_click = st.button("Clasificar", type="primary")
+    col_boletin, col_boton = st.columns([2, 1], vertical_alignment="bottom")
+    with col_boletin:
+        bulletin = st.selectbox(
+            "Boletín de origen",
+            config.BOLETINES,
+            format_func=lambda b: config.NOMBRE_BOLETIN.get(b, b),
+            key="clasificar_bulletin",
+        )
+    with col_boton:
+        clasificar_click = st.button("Clasificar", type="primary")
 
 # -- Pipeline ----------------------------------------------------------------------
 
@@ -228,74 +273,96 @@ if clasificar_click:
         st.warning("Escribe o selecciona una descripción antes de clasificar.")
     else:
         resultado = None
+        clasificacion_en_vivo = False
+        nombre_bloque = config.BLOQUES[bloque]["nombre"]
         with st.status("Ejecutando pipeline...", expanded=True) as status:
+            # Las 3 tarjetas del flujo se van encendiendo segun avanza el pipeline
+            pasos = [
+                {"titulo": "N0 · Ámbito", "dato": "", "estado": "pendiente"},
+                {"titulo": "N1 · Tipo de acto", "dato": "", "estado": "pendiente"},
+                {"titulo": f"LLM · {nombre_bloque}", "dato": "", "estado": "pendiente"},
+            ]
+            flujo = st.empty()
+
+            def _pintar_flujo() -> None:
+                flujo.markdown(
+                    theme.pipeline_html(pasos, color_bloque), unsafe_allow_html=True
+                )
+
             # Paso N0: ambito por lookup del boletin
-            ambito = get_ambito(bulletin)
-            st.write(f"**N0 · Ámbito**: {ambito} (lookup sin LLM)")
+            pasos[0]["estado"] = "activo"
+            _pintar_flujo()
             time.sleep(0.4)
+            ambito = get_ambito(bulletin)
+            pasos[0].update(dato=f"{ambito} (lookup sin LLM)", estado="completo")
+            _pintar_flujo()
 
             # Paso N1: tipo de acto por reglas de primer token
+            pasos[1]["estado"] = "activo"
+            _pintar_flujo()
+            time.sleep(0.4)
             act = inferir_act_type(descripcion, bulletin)
             texto = preprocess_description(descripcion, bulletin).lower().strip()
             patron = next((p for p, _t in _N1_MAP if texto.startswith(p)), None)
             if patron is not None:
-                st.write(
-                    f'**N1 · Tipo de acto**: {act.value} '
-                    f'(regla de primer token disparada: "{patron}")'
+                pasos[1].update(
+                    dato=f'{act.value} · regla: "{patron}"', estado="completo"
                 )
             else:
-                st.write(
-                    f"**N1 · Tipo de acto**: {act.value} "
-                    f"(ninguna regla coincide: cae en OTROS, como el 10,4 % del corpus)"
+                pasos[1].update(
+                    dato=f"{act.value} · sin regla (OTROS, 10,4 % del corpus)",
+                    estado="completo",
                 )
-            time.sleep(0.4)
+            _pintar_flujo()
 
             # Paso LLM: clasificacion del bloque tematico
-            nombre_bloque = config.BLOQUES[bloque]["nombre"]
+            pasos[2]["estado"] = "activo"
+            _pintar_flujo()
+            esqueleto = st.empty()  # shimmer mientras se espera al modelo
             if not modo_demo:
-                st.write(
-                    f"**LLM · {nombre_bloque}** (prompt {version}): "
-                    "llamando a la cadena de modelos..."
+                esqueleto.markdown(
+                    '<div class="skeleton"></div>', unsafe_allow_html=True
                 )
                 try:
                     resultado = llm.clasificar(bloque, version, descripcion, bulletin)
-                    st.write(
-                        f"Respuesta de `{resultado['modelo']}` "
-                        f"en {resultado['latencia_s']} s."
+                    clasificacion_en_vivo = True
+                    pasos[2].update(
+                        dato=f"{resultado['modelo']} · {resultado['latencia_s']} s",
+                        estado="completo",
                     )
+                    esqueleto.empty()
+                    _pintar_flujo()
                     status.update(
-                        label="Pipeline completado", state="complete", expanded=False
+                        label="Pipeline completado", state="complete", expanded=True
                     )
                 except Exception as e:
+                    esqueleto.empty()
                     resultado = _resultado_cacheado(descripcion)
                     if resultado is not None:
-                        st.write(
-                            "La llamada al LLM falló: se sirve el "
-                            "**resultado precalculado** del ejemplo."
+                        pasos[2].update(
+                            dato="resultado precalculado (el LLM falló)",
+                            estado="completo",
                         )
+                        _pintar_flujo()
                         status.update(
                             label="Pipeline completado (resultado precalculado)",
                             state="complete",
-                            expanded=False,
+                            expanded=True,
                         )
                     else:
                         st.error(f"Error al clasificar: {str(e)[:300]}")
                         status.update(label="Pipeline con errores", state="error")
             else:
-                st.write(
-                    f"**LLM · {nombre_bloque}**: modo demo, "
-                    "buscando resultado precalculado..."
-                )
                 resultado = _resultado_cacheado(descripcion)
                 if resultado is not None:
-                    st.write(
-                        "Encontrado el **resultado precalculado** "
-                        "de este ejemplo de la galería."
+                    pasos[2].update(
+                        dato="resultado precalculado (modo demo)", estado="completo"
                     )
+                    _pintar_flujo()
                     status.update(
                         label="Pipeline completado (resultado precalculado)",
                         state="complete",
-                        expanded=False,
+                        expanded=True,
                     )
                 else:
                     st.error(
@@ -304,12 +371,34 @@ if clasificar_click:
                         "de la galería."
                     )
                     status.update(label="Pipeline sin resultado", state="error")
+
+        if resultado is not None:
+            # El resultado recuerda con que bloque se clasifico (color estable)
+            resultado = {**resultado, "bloque": bloque}
+            out = resultado.get("output_dict") or {}
+
+            # Celebracion discreta en clasificaciones en vivo muy confiables
+            conf = out.get("confidence")
+            if (
+                clasificacion_en_vivo
+                and out.get("is_relevant")
+                and isinstance(conf, (int, float))
+                and conf > 0.9
+            ):
+                st.toast("Clasificación con confianza alta", icon="🎯")
+
+            # Easter egg: detectar correctamente el caso trampa demanial
+            if _es_caso_trampa(descripcion) and out.get("is_relevant") is False:
+                st.balloons()
+
         st.session_state["clasificador_resultado"] = resultado
 
 # -- Resultado (persiste entre reruns) ----------------------------------------------
 
 resultado_actual = st.session_state.get("clasificador_resultado")
 if resultado_actual:
-    st.divider()
-    st.subheader("Resultado de la clasificación")
-    _render_resultado(resultado_actual)
+    theme.seccion("Resultado de la clasificación", "🔬")
+    color_resultado = config.COLORES_BLOQUE.get(
+        resultado_actual.get("bloque", bloque), color_bloque
+    )
+    _render_resultado(resultado_actual, color_resultado)

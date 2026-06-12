@@ -49,10 +49,32 @@ PALETA_CATEGORICA = [
     "#225ea8", "#0c2c84", "#5ab4ac", "#74a9cf",
     "#2c7fb8", "#a6bddb", "#e8604c",
 ]
-COLOR_FONDO = "#ffffff"
-COLOR_TEXTO = "#2b2b2b"
+COLOR_FONDO = "#f4f6f9"  # fondo de la app (gris muy claro, NO blanco puro)
+COLOR_TEXTO = "#33475b"
+COLOR_TEXTO_FUERTE = "#102a43"
+COLOR_TEXTO_SUAVE = "#627d98"
+COLOR_BORDE_TARJETA = "#e3e8ef"
 COLOR_CHIP_VACIO = "#9e9e9e"  # chip placeholder para listas vacias
 COLOR_BADGE_RELEVANTE = "#2e7d32"  # verde del badge RELEVANTE (pagina 3)
+
+# -- Identidad por bloque tematico ---------------------------------------------
+# Un color por bloque, usado en TODA la app (selector, chips, sunburst, badges).
+COLORES_BLOQUE = {
+    "B0": "#1d6fa3",  # azul
+    "B1": "#0e9594",  # teal
+    "B2": "#8a6fb8",  # morado
+    "B3": "#e8a13c",  # ambar
+    "B4": "#c0563f",  # teja
+}
+ICONOS_BLOQUE = {"B0": "🌱", "B1": "💧", "B2": "🏗️", "B3": "💶", "B4": "📜"}
+# Punto de color para pills/menciones (aprox. emoji de cada color de bloque)
+PUNTOS_BLOQUE = {"B0": "🔵", "B1": "🟢", "B2": "🟣", "B3": "🟠", "B4": "🟤"}
+
+# -- Sunburst -------------------------------------------------------------------
+# Sectores que pesan menos que este umbral respecto a su padre se agrupan en
+# "otros (n)" gris para mantener la rueda legible.
+UMBRAL_OTROS_SUNBURST = 0.015
+COLOR_GRIS_OTROS = "#c4ccd6"
 
 # Layout base de Plotly (aplicar con fig.update_layout(**PLOTLY_LAYOUT))
 PLOTLY_LAYOUT = dict(
@@ -206,11 +228,13 @@ KEYWORDS_BLOQUES = {
     ],
 }
 
-# Cadena de modelos online para la demo (FallbackModel, en este orden)
+# Cadena de modelos online para la demo (FallbackModel, en este orden).
+# Verificados en vivo (jun 2026): gemini-2.0-flash y 1.5-flash ya NO tienen
+# free tier (429 limit:0); los tres siguientes si responden.
 CADENA_MODELOS = [
-    "google-gla:gemini-2.0-flash",
+    "google-gla:gemini-2.5-flash-lite",
     "groq:llama-3.3-70b-versatile",
-    "google-gla:gemini-1.5-flash",
+    "google-gla:gemini-2.5-flash",
 ]
 
 # -- Galeria de ejemplos (pagina 3) --------------------------------------------

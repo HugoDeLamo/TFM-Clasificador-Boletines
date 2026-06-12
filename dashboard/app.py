@@ -21,6 +21,10 @@ st.set_page_config(
     layout="wide",
 )
 
+from dashboard import theme  # noqa: E402
+
+theme.inject_css()
+
 VIEWS = Path(__file__).parent / "views"
 
 paginas = [
