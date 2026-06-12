@@ -29,6 +29,17 @@ _CSS = f"""
 /* =========================== base =========================== */
 html, body, [class*="st-"], .stMarkdown {{ font-family: 'Source Sans 3', sans-serif; }}
 h1, h2, h3, h4 {{ font-family: 'Sora', sans-serif !important; letter-spacing: -0.4px; }}
+/* Los iconos de Streamlit son ligaduras de Material Symbols: si la regla
+   tipografica de arriba les pisa la fuente, se ve el NOMBRE del icono en
+   texto plano (p.ej. "keyboard_double_arrow_left" en el boton del sidebar). */
+[data-testid="stIconMaterial"],
+span[class*="material-symbols"],
+.material-symbols-rounded,
+.material-symbols-outlined {{
+  font-family: 'Material Symbols Rounded' !important;
+  font-weight: normal !important;
+  letter-spacing: normal !important;
+}}
 .stApp {{ background: {config.COLOR_FONDO}; }}
 
 /* =========================== sidebar =========================== */
