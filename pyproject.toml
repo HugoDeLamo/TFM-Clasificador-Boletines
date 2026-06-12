@@ -7,10 +7,12 @@ dependencies = [
     "matplotlib>=3.10.9",
     "mcp>=1.0",
     "pandas>=3.0.2",
+    "plotly>=6.8.0",
     "pyarrow>=24.0.0",
     "pydantic-ai[google]>=1.93.0",
     "python-dotenv>=1.2.2",
     "scikit-learn>=1.8.0",
+    "streamlit>=1.58.0",
     "tqdm>=4.67.3",
 ]
 
