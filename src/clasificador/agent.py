@@ -205,19 +205,21 @@ async def run_experiment(
     semaphore = asyncio.Semaphore(concurrency)
     # write_lock protege las escrituras al CSV cuando concurrency > 1
     write_lock = asyncio.Lock()
-    # Controla si la cabecera ya fue escrita en esta ejecucion
-    header_written = Path(output_path).exists()
+    # Filas acumuladas (checkpoint + nuevas). El CSV se reescribe completo en cada
+    # fila: las filas de error tienen menos campos que las normales y un append
+    # con cabecera fija desalinea las columnas y corrompe el archivo.
+    saved_rows: list[dict] = list(existing_rows)
 
     async def process_row(row, pbar):
-        nonlocal header_written
         async with semaphore:
             t0 = time.perf_counter()
             try:
                 pred = await clasificar_async(row["description"], row["bulletin"], agent, use_n1_context)
             except ModelHTTPError as e:
                 if e.status_code == 400:
-                    print(f"\n  [SKIP] context overflow: {row['description'][:80]!r}")
-                    pred = {"is_relevant_pred": False, "error": "context_overflow"}
+                    # 400 puede ser context overflow O modelo no cargado en LM Studio
+                    print(f"\n  [SKIP] HTTP 400 ({str(e)[:120]}): {row['description'][:80]!r}")
+                    pred = {"is_relevant_pred": False, "error": "http_400"}
                 else:
                     print(f"\n  [ERROR] HTTP {e.status_code}: {e}")
                     pred = {"is_relevant_pred": False, "error": f"http_{e.status_code}"}
@@ -226,12 +228,12 @@ async def run_experiment(
                 pred = {"is_relevant_pred": False, "error": type(e).__name__}
             pred["duration_s"] = round(time.perf_counter() - t0, 3)
             result = {**row.to_dict(), **pred}
-            # Guardar inmediatamente tras cada fila para sobrevivir cortes de conexion
+            # Guardar inmediatamente tras cada fila para sobrevivir cortes de conexion.
+            # Se reescribe el CSV entero (~150 filas) para que pandas alinee las
+            # columnas de todas las filas, tengan o no los mismos campos.
             async with write_lock:
-                pd.DataFrame([result]).to_csv(
-                    output_path, mode="a", header=not header_written, index=False
-                )
-                header_written = True
+                saved_rows.append(result)
+                pd.DataFrame(saved_rows).to_csv(output_path, index=False)
             pbar.update(1)
             return result
 
