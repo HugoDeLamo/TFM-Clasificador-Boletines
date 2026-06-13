@@ -24,13 +24,16 @@ _GRAD_HERO = (
 
 # -- Modo claro / oscuro ---------------------------------------------------------
 
-def modo_actual() -> str:
-    """'claro' u 'oscuro'. Prioridad: selector de la sesión > variable de
-    entorno DASHBOARD_MODO (modo por defecto en despliegue) > 'claro'."""
+def _modo_defecto() -> str:
     import os
-    return st.session_state.get(
-        "modo_color", os.environ.get("DASHBOARD_MODO", "claro")
-    )
+    return os.environ.get("DASHBOARD_MODO", "claro")
+
+
+def modo_actual() -> str:
+    """'claro' u 'oscuro'. Lee la clave persistente 'modo_color' (clave normal de
+    session_state, NO ligada a un widget, por lo que sobrevive a los cambios de
+    página). Prioridad: selección de la sesión > DASHBOARD_MODO > 'claro'."""
+    return st.session_state.get("modo_color", _modo_defecto())
 
 
 def paleta() -> dict:
@@ -38,17 +41,29 @@ def paleta() -> dict:
     return config.TEMA[modo_actual()]
 
 
+def _sincronizar_modo() -> None:
+    """Copia la selección del widget a la clave persistente 'modo_color'."""
+    seleccion = st.session_state.get("modo_color_widget")
+    if seleccion:
+        st.session_state["modo_color"] = seleccion
+
+
 def selector_modo() -> None:
-    """Control de modo claro/oscuro para la barra lateral."""
-    import os
-    st.session_state.setdefault(
-        "modo_color", os.environ.get("DASHBOARD_MODO", "claro")
-    )
+    """Control de modo claro/oscuro para la barra lateral.
+
+    El widget usa su propia clave ('modo_color_widget'); el valor real vive en
+    'modo_color' (clave normal que persiste entre páginas). El widget se
+    inicializa desde esa clave, así que aunque Streamlit limpie el estado del
+    widget al cambiar de página, el modo se restaura del valor persistente.
+    """
+    st.session_state.setdefault("modo_color", _modo_defecto())
     st.segmented_control(
         "Tema",
         options=["claro", "oscuro"],
         format_func=lambda m: ("Claro" if m == "claro" else "Oscuro"),
-        key="modo_color",
+        default=st.session_state["modo_color"],
+        key="modo_color_widget",
+        on_change=_sincronizar_modo,
     )
 
 
@@ -275,30 +290,48 @@ div[data-baseweb="select"] > div, div[data-baseweb="base-input"] {{
   background: {p['tarjeta']} !important; border-color: {p['borde']} !important;
 }}
 div[data-baseweb="select"] * {{ color: {p['texto']} !important; }}
-/* menu desplegable de los selectbox/multiselect (se monta al final del body) */
-ul[role="listbox"], div[data-baseweb="menu"], div[data-baseweb="popover"] div[role="listbox"] {{
+/* menu desplegable de los selectbox/multiselect (se monta al final del body).
+   BaseWeb pinta el texto y el fondo del resaltado en elementos hijos, asi que
+   hay que forzar tambien los descendientes (*). */
+ul[role="listbox"], div[data-baseweb="menu"], div[data-baseweb="popover"] div[role="listbox"],
+div[data-baseweb="popover"] ul {{
   background: {p['tarjeta']} !important; border: 1px solid {p['borde']} !important;
 }}
-li[role="option"], ul[role="listbox"] li {{ background: {p['tarjeta']} !important; color: {p['texto']} !important; }}
-li[role="option"]:hover, li[aria-selected="true"] {{ background: {_tinte(config.COLOR_PRIMARIO, '20')} !important; }}
+[role="option"] {{ background: {p['tarjeta']} !important; color: {p['texto']} !important; }}
+[role="option"] * {{ color: {p['texto']} !important; background: transparent !important; }}
+[role="option"]:hover, [role="option"][aria-selected="true"] {{
+  background: {_tinte(config.COLOR_PRIMARIO, '22')} !important;
+}}
+[role="option"]:hover *, [role="option"][aria-selected="true"] * {{
+  color: {config.COLOR_PRIMARIO} !important;
+}}
 /* etiquetas (tags) del multiselect */
-span[data-baseweb="tag"] {{ background: {_tinte(config.COLOR_PRIMARIO, '24')} !important; color: {config.COLOR_PRIMARIO} !important; }}
-span[data-baseweb="tag"] span {{ color: {config.COLOR_PRIMARIO} !important; }}
-/* grupos de botones: pills Y segmented_control (selector de tema) */
+span[data-baseweb="tag"] {{ background: {_tinte(config.COLOR_PRIMARIO, '24')} !important; }}
+span[data-baseweb="tag"] * {{ color: {config.COLOR_PRIMARIO} !important; }}
+/* grupos de botones: pills Y segmented_control (selector de tema). El texto va
+   en un hijo, por eso se fuerza el color tambien en los descendientes (*). */
 div[data-testid="stButtonGroup"] button {{
   border-radius: 999px !important; transition: transform .2s ease, box-shadow .2s ease;
-  background: {p['tarjeta']} !important; color: {p['texto']} !important;
-  border: 1px solid {p['borde']} !important;
+  background: {p['tarjeta']} !important; border: 1px solid {p['borde']} !important;
 }}
+div[data-testid="stButtonGroup"] button * {{ color: {p['texto_fuerte']} !important; }}
 div[data-testid="stButtonGroup"] button[aria-checked="true"],
 button[data-testid="stBaseButton-pillsActive"],
 button[data-testid="stBaseButton-segmented_controlActive"] {{
-  background: {_tinte(config.COLOR_PRIMARIO, '24')} !important;
-  color: {config.COLOR_PRIMARIO} !important; border-color: {config.COLOR_PRIMARIO} !important;
+  background: {_tinte(config.COLOR_PRIMARIO, '24')} !important; border-color: {config.COLOR_PRIMARIO} !important;
+}}
+div[data-testid="stButtonGroup"] button[aria-checked="true"] *,
+button[data-testid="stBaseButton-pillsActive"] *,
+button[data-testid="stBaseButton-segmented_controlActive"] * {{
+  color: {config.COLOR_PRIMARIO} !important;
 }}
 div[data-testid="stButtonGroup"] button:hover {{ transform: translateY(-2px); box-shadow: 0 4px 12px rgba(8,20,12,.14); }}
-div[data-testid="stExpander"] {{ background: {p['tarjeta']}; border-radius: 12px; border: 1px solid {p['borde']}; box-shadow: 0 1px 3px rgba(8,20,12,.08); }}
-div[data-testid="stExpander"] summary {{ color: {p['texto_fuerte']} !important; }}
+div[data-testid="stExpander"] {{ background: {p['tarjeta']}; border-radius: 12px; border: 1px solid {p['borde']}; box-shadow: 0 1px 3px rgba(8,20,12,.08); overflow: hidden; }}
+/* cabecera (summary) del expander: misma superficie que el cuerpo */
+div[data-testid="stExpander"] details, div[data-testid="stExpander"] summary {{
+  background: {p['tarjeta']} !important;
+}}
+div[data-testid="stExpander"] summary, div[data-testid="stExpander"] summary * {{ color: {p['texto_fuerte']} !important; }}
 /* bloques de codigo (st.code): superficie y texto del modo activo */
 [data-testid="stCode"], [data-testid="stCode"] pre, .stCode pre, pre, code {{
   background: {p['fondo']} !important; color: {p['texto']} !important;
