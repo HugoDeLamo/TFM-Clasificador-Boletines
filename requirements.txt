@@ -4,4 +4,5 @@ pandas>=2.2
 pyarrow>=17.0
 scikit-learn>=1.5
 pydantic-ai[google,groq]>=1.93
+tqdm>=4.67
 python-dotenv>=1.0

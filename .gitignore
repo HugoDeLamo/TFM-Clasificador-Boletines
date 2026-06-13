@@ -1,4 +1,4 @@
-# Python-generated files
+# Python
 __pycache__/
 *.py[oc]
 build/
@@ -6,24 +6,19 @@ dist/
 wheels/
 *.egg-info
 
-# Virtual environments
+# Entornos virtuales
 .venv
 
 # Secretos — nunca al repo
 .env
+.streamlit/secrets.toml
 
 # Jupyter checkpoints
 .ipynb_checkpoints/
 
-# Datos pesados — no al repo
-data/raw/*.parquet
-data/raw/*.csv
-*.parquet
+# Dataset crudo (pesado y solo necesario para re-ejecutar notebooks/precompute;
+# la demo desplegada usa dashboard/cache/, que SÍ se versiona)
+data/raw/
 
-# Resultados intermedios grandes
-results/*.csv
-results/*.parquet
-
-# Streamlit
-.streamlit/secrets.toml
-dashboard/cache/
+# Backups temporales
+*.corrupto.bak

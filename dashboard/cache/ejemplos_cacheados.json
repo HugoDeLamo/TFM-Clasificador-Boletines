@@ -1,0 +1,102 @@
+{
+ "b0_aau": {
+  "output_dict": {
+   "is_relevant": true,
+   "act_type": "anuncio",
+   "procedures": [
+    "AAU"
+   ],
+   "technologies": [],
+   "confidence": 1.0,
+   "reasoning": "El texto menciona \"nueva autorización ambiental unificada simplificada\", lo que se corresponde con la etiqueta AAU."
+  },
+  "modelo": "gemini-2.5-flash-lite",
+  "latencia_s": 2.85,
+  "origen": "clasificado en vivo durante el precalculo"
+ },
+ "b0_multi": {
+  "output_dict": {
+   "is_relevant": true,
+   "act_type": "resolución",
+   "procedures": [
+    "AAP",
+    "AAC",
+    "DUP"
+   ],
+   "technologies": [
+    "línea_eléctrica"
+   ],
+   "confidence": 1.0,
+   "reasoning": "La publicación menciona \"autorización administrativa previa y autorización administrativa de construcción\", lo que corresponde a AAP y AAC. Además, se declara \"la utilidad pública\", que corresponde a DUP."
+  },
+  "modelo": "gemini-2.5-flash-lite",
+  "latencia_s": 2.14,
+  "origen": "clasificado en vivo durante el precalculo"
+ },
+ "b1_riego": {
+  "output_dict": {
+   "is_relevant": true,
+   "act_type": "anuncio",
+   "categories": [
+    "AGU_RIE"
+   ],
+   "subcategories": [
+    "uso_agricola",
+    "cuenca_duero"
+   ],
+   "confidence": 0.9,
+   "reasoning": "El texto menciona \"con destino a riego\", lo que activa la categoría AGU_RIE. La referencia a la \"Confederación Hidrográfica del Duero\" y la provincia de Ávila permiten inferir la cuenca del Duero."
+  },
+  "modelo": "gemini-2.5-flash-lite",
+  "latencia_s": 1.5,
+  "origen": "clasificado en vivo durante el precalculo"
+ },
+ "b2_modpun": {
+  "output_dict": {
+   "is_relevant": true,
+   "act_type": "resolución",
+   "categories": [
+    "MOD_PUN"
+   ],
+   "subcategories": [
+    "fase_definitiva",
+    "uso_comercial"
+   ],
+   "confidence": 0.95,
+   "reasoning": "La \"Modificación del Plan General de Ordenación Urbana (PGOU) de Mijas\" junto con la mención a \"modificación del Plan General\" indica que la categoría principal es MOD_PUN. La fase se infiere como \"definitiva\" por ser una resolución de publicación y el uso como \"comercial\" por ser una modificación del PGOU que generalmente abarca diversos usos."
+  },
+  "modelo": "gemini-2.5-flash-lite",
+  "latencia_s": 1.24,
+  "origen": "clasificado en vivo durante el precalculo"
+ },
+ "b3_bdns": {
+  "output_dict": {
+   "is_relevant": true,
+   "act_type": "extracto",
+   "categories": [
+    "SUB_CONV"
+   ],
+   "subcategories": [
+    "sector_empleo"
+   ],
+   "confidence": 1.0,
+   "reasoning": "El texto es un \"EXTRACTO\" de una Orden, lo que por regla crítica 1 es únicamente \"SUB_CONV\". La mención a \"contratación de personal de apoyo\" sugiere la subcategoría \"sector_empleo\"."
+  },
+  "modelo": "gemini-2.5-flash-lite",
+  "latencia_s": 3.28,
+  "origen": "clasificado en vivo durante el precalculo"
+ },
+ "b4_demanial": {
+  "output_dict": {
+   "is_relevant": false,
+   "act_type": "resolución",
+   "categories": [],
+   "subcategories": [],
+   "confidence": 0.9,
+   "reasoning": "La publicación se refiere a una \"concesión administrativa\" para la explotación de un bar-cafetería y restaurante en el edificio Port Centre del puerto de Palma. Según las reglas críticas, las concesiones demaniales, que implican la ocupación de dominio público (como en este caso, una autoridad portuaria), no son relevantes para el dominio de contratación pública (LCSP) y deben clasificarse con is_relevant=False."
+  },
+  "modelo": "gemini-2.5-flash-lite",
+  "latencia_s": 1.63,
+  "origen": "clasificado en vivo durante el precalculo"
+ }
+}
