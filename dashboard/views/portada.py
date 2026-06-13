@@ -85,7 +85,7 @@ CAPAS = [
     (
         "Capa 3 · Evaluación",
         "Métricas <b>multietiqueta</b> sobre ground truth anotado "
-        "(150 registros por bloque).",
+        "(de 100 a 150 registros por bloque).",
     ),
 ]
 
