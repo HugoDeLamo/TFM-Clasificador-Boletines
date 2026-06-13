@@ -193,8 +193,17 @@ def fig_mapa_ccaa(geojson: dict, df: pd.DataFrame, feature_key: str) -> go.Figur
         color_continuous_scale=config.PALETA_SECUENCIAL,
         labels={"count": "Publicaciones"},
     )
-    fig.update_geos(fitbounds="locations", visible=False)
-    fig.update_layout(height=480, coloraxis_colorbar_title="Publicaciones")
+    # Fondo del geo transparente para que herede la tarjeta (claro u oscuro);
+    # las CCAA sin dato toman el color de tarjeta del modo activo.
+    p = theme.paleta()
+    fig.update_geos(
+        fitbounds="locations", visible=False,
+        bgcolor="rgba(0,0,0,0)", showframe=False, showcoastlines=False,
+        landcolor=p["tarjeta"],
+    )
+    fig.update_traces(marker_line_color=p["borde"], marker_line_width=0.6)
+    fig.update_layout(height=480, coloraxis_colorbar_title="Publicaciones",
+                      geo_bgcolor="rgba(0,0,0,0)")
     return _tema(fig)
 
 

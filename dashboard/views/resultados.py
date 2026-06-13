@@ -177,24 +177,57 @@ with st.container(border=True):
         st.info("Este experimento no comete ningún error de acierto exacto.")
     else:
         a_si_no = lambda v: "Sí" if data_loader.parse_bool(v) else "No"
+        st.caption(
+            "Lista compacta de los registros donde la predicción difiere del "
+            "ground truth. Selecciona uno abajo para ver el desglose completo."
+        )
         tabla_errores = pd.DataFrame({
-            "Descripción": [str(d)[:160] for d in errores["description"].values],
+            "ID": errores["id"].astype(int).values,
+            "Descripción": [str(d)[:130] + "…" for d in errores["description"].values],
             "GT rel.": [a_si_no(v) for v in errores["is_relevant_gt"].values],
-            "GT etiquetas": [", ".join(s) for s in errores["gt_set"]],
+            "GT etiquetas": [", ".join(s) or "—" for s in errores["gt_set"]],
             "Pred. rel.": [a_si_no(v) for v in errores["is_relevant_pred"].values],
-            "Pred. etiquetas": [", ".join(s) for s in errores["pred_set"]],
+            "Pred. etiquetas": [", ".join(s) or "—" for s in errores["pred_set"]],
         })
-        # st.table para heredar el modo claro/oscuro (el razonamiento completo
-        # se omite de la tabla por longitud; va en un expander debajo)
         st.table(tabla_errores.style.hide(axis="index"))
-        with st.expander("Ver el razonamiento del modelo en cada error"):
-            for _, fila in errores.iterrows():
-                st.markdown(
-                    f"**{str(fila['description'])[:120]}…**  \n"
-                    f"{fila['reasoning']}"
-                )
 
-    st.caption(
-        "Los registros donde la predicción difiere del ground truth, con el "
-        "razonamiento del modelo: material de análisis para la defensa."
-    )
+        # Zoom: elegir un error y ver su desglose completo
+        opciones = list(errores["id"].astype(int))
+        _por_id = {int(r["id"]): r for _, r in errores.iterrows()}
+        sel_id = st.selectbox(
+            "Ver el desglose completo de un error",
+            opciones,
+            format_func=lambda i: f"ID {i} · {str(_por_id[i]['description'])[:80]}…",
+            key=f"detalle_error_{exp_err}",
+        )
+        fila = _por_id[sel_id]
+        gt_set, pred_set = sorted(fila["gt_set"]), sorted(fila["pred_set"])
+        faltan = [e for e in gt_set if e not in pred_set]
+        sobran = [e for e in pred_set if e not in gt_set]
+
+        with st.container(border=True):
+            st.markdown(f"**Publicación (ID {sel_id})**")
+            st.write(str(fila["description"]))
+            col_gt, col_pred = st.columns(2)
+            with col_gt:
+                st.markdown("**Ground truth**")
+                st.markdown(
+                    f"- Relevante: {a_si_no(fila['is_relevant_gt'])}\n"
+                    f"- Etiquetas: {', '.join(gt_set) or '—'}"
+                )
+            with col_pred:
+                st.markdown("**Predicción del modelo**")
+                st.markdown(
+                    f"- Relevante: {a_si_no(fila['is_relevant_pred'])}\n"
+                    f"- Etiquetas: {', '.join(pred_set) or '—'}"
+                )
+            if faltan or sobran:
+                difs = []
+                if faltan:
+                    difs.append(f"falta(n) **{', '.join(faltan)}**")
+                if sobran:
+                    difs.append(f"sobra(n) **{', '.join(sobran)}**")
+                st.markdown("Diferencia: " + "; ".join(difs) + ".")
+            if str(fila.get("reasoning", "")).strip():
+                st.markdown("**Razonamiento del modelo**")
+                st.info(str(fila["reasoning"]))

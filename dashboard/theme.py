@@ -270,24 +270,40 @@ div[data-testid="stMetric"] * {{ color: {p['texto_fuerte']}; }}
 .stDateInput input {{
   background: {p['tarjeta']} !important; color: {p['texto']} !important;
 }}
+.stTextInput input::placeholder, .stTextArea textarea::placeholder {{ color: {p['texto_suave']} !important; }}
 div[data-baseweb="select"] > div, div[data-baseweb="base-input"] {{
   background: {p['tarjeta']} !important; border-color: {p['borde']} !important;
 }}
-div[data-baseweb="select"] *, div[data-baseweb="popover"] li {{ color: {p['texto']} !important; }}
-div[data-baseweb="popover"] [role="listbox"], div[data-baseweb="menu"] {{ background: {p['tarjeta']} !important; }}
-button[data-testid="stBaseButton-pills"], button[data-testid="stBaseButton-pillsActive"] {{
+div[data-baseweb="select"] * {{ color: {p['texto']} !important; }}
+/* menu desplegable de los selectbox/multiselect (se monta al final del body) */
+ul[role="listbox"], div[data-baseweb="menu"], div[data-baseweb="popover"] div[role="listbox"] {{
+  background: {p['tarjeta']} !important; border: 1px solid {p['borde']} !important;
+}}
+li[role="option"], ul[role="listbox"] li {{ background: {p['tarjeta']} !important; color: {p['texto']} !important; }}
+li[role="option"]:hover, li[aria-selected="true"] {{ background: {_tinte(config.COLOR_PRIMARIO, '20')} !important; }}
+/* etiquetas (tags) del multiselect */
+span[data-baseweb="tag"] {{ background: {_tinte(config.COLOR_PRIMARIO, '24')} !important; color: {config.COLOR_PRIMARIO} !important; }}
+span[data-baseweb="tag"] span {{ color: {config.COLOR_PRIMARIO} !important; }}
+/* grupos de botones: pills Y segmented_control (selector de tema) */
+div[data-testid="stButtonGroup"] button {{
   border-radius: 999px !important; transition: transform .2s ease, box-shadow .2s ease;
   background: {p['tarjeta']} !important; color: {p['texto']} !important;
   border: 1px solid {p['borde']} !important;
 }}
-button[data-testid="stBaseButton-pillsActive"] {{
+div[data-testid="stButtonGroup"] button[aria-checked="true"],
+button[data-testid="stBaseButton-pillsActive"],
+button[data-testid="stBaseButton-segmented_controlActive"] {{
   background: {_tinte(config.COLOR_PRIMARIO, '24')} !important;
   color: {config.COLOR_PRIMARIO} !important; border-color: {config.COLOR_PRIMARIO} !important;
 }}
-button[data-testid="stBaseButton-pills"]:hover {{ transform: translateY(-2px); box-shadow: 0 4px 12px rgba(8,20,12,.14); }}
+div[data-testid="stButtonGroup"] button:hover {{ transform: translateY(-2px); box-shadow: 0 4px 12px rgba(8,20,12,.14); }}
 div[data-testid="stExpander"] {{ background: {p['tarjeta']}; border-radius: 12px; border: 1px solid {p['borde']}; box-shadow: 0 1px 3px rgba(8,20,12,.08); }}
 div[data-testid="stExpander"] summary {{ color: {p['texto_fuerte']} !important; }}
-.stCode, code {{ background: {p['fondo']} !important; }}
+/* bloques de codigo (st.code): superficie y texto del modo activo */
+[data-testid="stCode"], [data-testid="stCode"] pre, .stCode pre, pre, code {{
+  background: {p['fondo']} !important; color: {p['texto']} !important;
+}}
+[data-testid="stCode"] {{ border: 1px solid {p['borde']}; border-radius: 8px; }}
 
 /* =========================== keyframes =========================== */
 @keyframes fadeUp {{ from {{ opacity: 0; transform: translateY(10px); }} to {{ opacity: 1; transform: translateY(0); }} }}

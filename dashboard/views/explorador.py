@@ -130,7 +130,7 @@ if corpus is not None:
     theme.tarjetas_metricas(
         [
             (_fmt_miles(n_total), "Publicaciones"),
-            (str(n_boletines), "Boletines oficiales"),
+            (str(n_boletines), "Fuentes (18 oficiales + 1 local)"),
             (_fmt_pct(pct_bloque), "Con bloque temático"),
             (_fmt_pct(pct_otros), "N1 «otros»"),
         ]

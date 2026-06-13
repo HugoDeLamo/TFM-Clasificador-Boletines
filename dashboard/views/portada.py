@@ -35,10 +35,15 @@ theme.hero(
 theme.tarjetas_metricas(
     [
         ("65.201", "Publicaciones"),
-        ("19", "Fuentes (BOE + autonómicos)"),
-        ("6", "Bloques temáticos (B0–B5)"),
+        ("19", "Fuentes (18 oficiales + 1 local)"),
+        ("5", "Bloques temáticos (B0–B4)"),
         ("0,975", "Macro F1 · mejor configuración B0"),
     ]
+)
+st.caption(
+    "Fuentes: 18 boletines oficiales (BOE estatal + 17 autonómicos) y 2 locales "
+    "(Madrid Ambiental y AAU). En el corpus de Q1 2025 aparecen 19, ya que AAU "
+    "no tiene publicaciones en este periodo."
 )
 
 # -- Pipeline de 3 capas --------------------------------------------------------
