@@ -27,33 +27,35 @@ theme.hero(
     "Sistema de <b>clasificación multietiqueta</b> de publicaciones de boletines "
     "oficiales españoles mediante LLMs con <b>salida estructurada validada por "
     "esquema</b> (Pydantic AI).",
-    "🏛️",
+    "🌿",
 )
 
 # -- Cifras clave ---------------------------------------------------------------
 
 theme.tarjetas_metricas(
     [
-        ("📰", "65.201", "Publicaciones"),
-        ("🗺️", "19", "Fuentes (BOE + autonómicos)"),
-        ("🧩", "6", "Bloques temáticos (B0–B5)"),
-        ("🎯", "0,975", "Macro F1 · mejor configuración B0"),
+        ("65.201", "Publicaciones"),
+        ("19", "Fuentes (BOE + autonómicos)"),
+        ("6", "Bloques temáticos (B0–B5)"),
+        ("0,975", "Macro F1 · mejor configuración B0"),
     ]
 )
 
 # -- Pipeline de 3 capas --------------------------------------------------------
 
-theme.seccion("Arquitectura del pipeline", "⚙️")
+theme.seccion("Arquitectura del pipeline")
 
 
-def _tarjeta_capa(emoji: str, titulo: str, texto: str, color: str) -> str:
+_TEXTO = theme.paleta()["texto"]
+
+
+def _tarjeta_capa(titulo: str, texto: str, color: str) -> str:
     """Tarjeta HTML de una capa del pipeline con el estilo .tarjeta del CSS global."""
     return (
         f'<div class="tarjeta" style="--acento:{color}">'
-        f'<div class="icono">{emoji}</div>'
         f'<div style="color:{color}; font-family:\'Sora\',sans-serif; '
-        f'font-weight:700; font-size:1rem; margin:.35rem 0 .45rem;">{titulo}</div>'
-        f'<div style="color:{config.COLOR_TEXTO}; font-size:.9rem; '
+        f'font-weight:700; font-size:1rem; margin:0 0 .45rem;">{titulo}</div>'
+        f'<div style="color:{_TEXTO}; font-size:.9rem; '
         f'line-height:1.5;">{texto}</div>'
         f"</div>"
     )
@@ -61,24 +63,21 @@ def _tarjeta_capa(emoji: str, titulo: str, texto: str, color: str) -> str:
 
 _FLECHA = (
     f'<div style="align-self:center; flex:0 0 auto; font-size:2.6rem; '
-    f'font-weight:800; color:{config.COLOR_PRIMARIO};">→</div>'
+    f'font-weight:800; color:{config.COLOR_PRIMARIO};">&#8594;</div>'
 )
 
 CAPAS = [
     (
-        "🔎",
         "Capa 1 · Pre-procesamiento sin LLM",
         "N0 por <b>lookup del boletín</b> + N1 por <b>reglas léxicas de "
         "primer token</b> (89,6&nbsp;% de cobertura).",
     ),
     (
-        "🤖",
         "Capa 2 · Agente LLM con salida estructurada",
         "Esquema <b>Pydantic validado</b>, invariantes de negocio y "
         "<b>reintento automático</b> con el error de validación reinyectado.",
     ),
     (
-        "📊",
         "Capa 3 · Evaluación",
         "Métricas <b>multietiqueta</b> sobre ground truth anotado "
         "(150 registros por bloque).",
@@ -86,11 +85,11 @@ CAPAS = [
 ]
 
 _piezas_pipeline = []
-for i, (emoji, titulo, texto) in enumerate(CAPAS):
+for i, (titulo, texto) in enumerate(CAPAS):
     if i:
         _piezas_pipeline.append(_FLECHA)
-    color = config.PALETA_AZULES[i % len(config.PALETA_AZULES)]
-    _piezas_pipeline.append(_tarjeta_capa(emoji, titulo, texto, color))
+    color = config.PALETA_VERDES[i % len(config.PALETA_VERDES)]
+    _piezas_pipeline.append(_tarjeta_capa(titulo, texto, color))
 
 st.markdown(
     f'<div class="fila-tarjetas">{"".join(_piezas_pipeline)}</div>',
@@ -101,13 +100,12 @@ st.info(
     "Los experimentos de la memoria se ejecutaron con modelos locales "
     "(Qwen 3.5 9B, Gemma 4 4B vía LM Studio). Esta demo usa proveedores en "
     "línea gratuitos para mostrar que la arquitectura es agnóstica al "
-    "proveedor.",
-    icon="💡",
+    "proveedor."
 )
 
 # -- Bloques tematicos ----------------------------------------------------------
 
-theme.seccion("Bloques temáticos", "🧩")
+theme.seccion("Bloques temáticos")
 
 _piezas_bloques = []
 for clave, bloque in config.BLOQUES.items():
@@ -120,7 +118,7 @@ for clave, bloque in config.BLOQUES.items():
         f'<div style="color:{color}; font-family:\'Sora\',sans-serif; '
         f'font-weight:700; font-size:.95rem; margin:.3rem 0 .4rem;">'
         f'{bloque["nombre"]}</div>'
-        f'<div style="color:{config.COLOR_TEXTO}; font-size:.82rem; '
+        f'<div style="color:{_TEXTO}; font-size:.82rem; '
         f'line-height:1.45;">{bloque["descripcion"]}</div>'
         f"</div>"
     )

@@ -23,8 +23,6 @@ st.set_page_config(
 
 from dashboard import theme  # noqa: E402
 
-theme.inject_css()
-
 VIEWS = Path(__file__).parent / "views"
 
 paginas = [
@@ -34,4 +32,15 @@ paginas = [
     st.Page(VIEWS / "resultados.py", title="Resultados experimentales", icon="📊"),
 ]
 
-st.navigation(paginas).run()
+navegacion = st.navigation(paginas)
+
+# Selector de tema en la barra lateral (debajo de la navegacion). El modo se
+# guarda en session_state["modo_color"] y lo lee theme.inject_css() en cada vista.
+with st.sidebar:
+    st.divider()
+    theme.selector_modo()
+
+# Inyectar el CSS del modo activo antes de pintar la pagina (las vistas tambien
+# lo reinyectan, lo cual es idempotente).
+theme.inject_css()
+navegacion.run()

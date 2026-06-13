@@ -8,38 +8,32 @@ de config.py aplicada. Ninguna toca disco ni Streamlit.
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import plotly.io as pio
 
-from dashboard import config
-
-# -- Template Plotly propio --------------------------------------------------------
-# Fondo transparente (hereda la tarjeta blanca), grid punteado, paleta de config,
-# leyenda horizontal arriba a la derecha sin caja.
-pio.templates["tfm"] = go.layout.Template(
-    layout=dict(
-        font=dict(family="Source Sans 3, Source Sans Pro, sans-serif",
-                  color=config.COLOR_TEXTO),
-        paper_bgcolor="rgba(0,0,0,0)",
-        plot_bgcolor="rgba(0,0,0,0)",
-        colorway=config.PALETA_CATEGORICA,
-        margin=dict(l=36, r=16, t=36, b=36),
-        xaxis=dict(gridcolor=config.COLOR_BORDE_TARJETA, griddash="dot",
-                   zeroline=False, linecolor=config.COLOR_BORDE_TARJETA),
-        yaxis=dict(gridcolor=config.COLOR_BORDE_TARJETA, griddash="dot",
-                   zeroline=False, linecolor=config.COLOR_BORDE_TARJETA),
-        legend=dict(orientation="h", yanchor="bottom", y=1.02,
-                    xanchor="right", x=1, bgcolor="rgba(0,0,0,0)",
-                    borderwidth=0),
-        hoverlabel=dict(font_family="Source Sans 3, sans-serif"),
-    )
-)
+from dashboard import config, theme
 
 # Pasar a st.plotly_chart(..., config=PLOTLY_CONFIG) en todas las vistas
 PLOTLY_CONFIG = {"displayModeBar": False}
 
 
 def _tema(fig: go.Figure, titulo: str | None = None) -> go.Figure:
-    fig.update_layout(template="tfm")
+    """Aplica fondo transparente (hereda la tarjeta), grid punteado y la paleta
+    con los colores del modo activo (claro/oscuro)."""
+    p = theme.paleta()
+    fig.update_layout(
+        font=dict(family="Source Sans 3, Source Sans Pro, sans-serif",
+                  color=p["texto"]),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        colorway=config.PALETA_CATEGORICA,
+        margin=dict(l=36, r=16, t=36, b=36),
+        legend=dict(orientation="h", yanchor="bottom", y=1.02,
+                    xanchor="right", x=1, bgcolor="rgba(0,0,0,0)", borderwidth=0),
+        hoverlabel=dict(font_family="Source Sans 3, sans-serif"),
+    )
+    fig.update_xaxes(gridcolor=p["grid"], griddash="dot", zeroline=False,
+                     linecolor=p["grid"])
+    fig.update_yaxes(gridcolor=p["grid"], griddash="dot", zeroline=False,
+                     linecolor=p["grid"])
     if titulo:
         fig.update_layout(title=titulo)
     return fig
@@ -119,24 +113,28 @@ def fig_sunburst_taxonomia(df: pd.DataFrame) -> go.Figure:
         maxdepth=2,
     )
 
-    azules_n0 = {n0: config.PALETA_AZULES[i % len(config.PALETA_AZULES)]
+    p = theme.paleta()
+    # Anillo N0: verdes de marca (oscuro -> claro)
+    verdes_n0 = {n0: config.PALETA_VERDES[i % len(config.PALETA_VERDES)]
                  for i, n0 in enumerate(sorted(df["n0"].unique()))}
 
     def _color_nodo(nid: str) -> str:
         partes = str(nid).split("/")
         hoja = partes[-1]
         if hoja.startswith("otros") or hoja == "sin bloque":
-            return config.COLOR_GRIS_OTROS
+            return p["gris_otros"]
         if len(partes) == 1:  # anillo N0
-            return azules_n0.get(hoja, config.COLOR_PRIMARIO)
-        if len(partes) == 2:  # anillo N1
-            return "#74a9cf"
+            return verdes_n0.get(hoja, config.COLOR_PRIMARIO)
+        if len(partes) == 2:  # anillo N1: verde lima medio
+            return config.PALETA_VERDES[3]
         bloque_id = _BLOQUE_A_ID.get(hoja)  # anillo de bloques
-        return config.COLORES_BLOQUE.get(bloque_id, "#a6bddb")
+        return config.COLORES_BLOQUE.get(bloque_id, p["gris_otros"])
 
     tr = fig.data[0]
     tr.marker.colors = [_color_nodo(i) for i in tr.ids]
-    tr.marker.line = dict(color="#ffffff", width=1.5)
+    # Separadores del color de la tarjeta para que los gajos se distingan en
+    # ambos modos (blanco en claro, oscuro en oscuro).
+    tr.marker.line = dict(color=p["tarjeta"], width=1.5)
     fig.update_traces(
         textinfo="label+percent parent",
         insidetextorientation="radial",
@@ -164,8 +162,9 @@ def fig_barras_nivel(df: pd.DataFrame, nivel: str) -> go.Figure:
     """
     agg = df.groupby(nivel, as_index=False)["count"].sum().sort_values("count")
     if nivel == "bloque":
+        gris = theme.paleta()["gris_otros"]
         colores = [
-            config.COLORES_BLOQUE.get(_BLOQUE_A_ID.get(str(v), ""), config.COLOR_GRIS_OTROS)
+            config.COLORES_BLOQUE.get(_BLOQUE_A_ID.get(str(v), ""), gris)
             for v in agg[nivel]
         ]
     else:
@@ -333,26 +332,4 @@ def fig_scatter_velocidad(df: pd.DataFrame) -> go.Figure:
         xaxis_title="Velocidad media (s/ítem)",
         yaxis_title="F1 relevancia",
     )
-    return _tema(fig)
-
-
-# -- Clasificador (página 3) -------------------------------------------------------
-
-def fig_gauge_confianza(valor: float) -> go.Figure:
-    """Gauge de confianza 0-1."""
-    fig = go.Figure(go.Indicator(
-        mode="gauge+number",
-        value=valor,
-        number=dict(valueformat=".2f"),
-        gauge=dict(
-            axis=dict(range=[0, 1]),
-            bar=dict(color=config.COLOR_PRIMARIO),
-            steps=[
-                dict(range=[0, 0.6], color="#fde2dc"),
-                dict(range=[0.6, 0.8], color="#d8ecf3"),
-                dict(range=[0.8, 1.0], color="#c4e6ef"),
-            ],
-        ),
-    ))
-    fig.update_layout(height=220, margin=dict(l=30, r=30, t=30, b=10))
     return _tema(fig)

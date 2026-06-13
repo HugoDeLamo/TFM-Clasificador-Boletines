@@ -129,16 +129,16 @@ theme.hero("Explorador del corpus", subtitulo_hero, "🔍")
 if corpus is not None:
     theme.tarjetas_metricas(
         [
-            ("📚", _fmt_miles(n_total), "Publicaciones"),
-            ("📰", str(n_boletines), "Boletines oficiales"),
-            ("🧩", _fmt_pct(pct_bloque), "Con bloque temático"),
-            ("❓", _fmt_pct(pct_otros), "N1 «otros»"),
+            (_fmt_miles(n_total), "Publicaciones"),
+            (str(n_boletines), "Boletines oficiales"),
+            (_fmt_pct(pct_bloque), "Con bloque temático"),
+            (_fmt_pct(pct_otros), "N1 «otros»"),
         ]
     )
 
 # -- 1. Taxonomia ---------------------------------------------------------------
 
-theme.seccion("Taxonomía del corpus", "🌳")
+theme.seccion("Taxonomía del corpus")
 with st.container(border=True):
     if sunburst is None:
         _aviso_cache("conteos del sunburst")
@@ -184,7 +184,7 @@ with st.container(border=True):
 
 # -- 2. Geografia -----------------------------------------------------------------
 
-theme.seccion("Distribución geográfica", "🗺️")
+theme.seccion("Distribución geográfica")
 with st.container(border=True):
     if corpus is None:
         _aviso_cache("corpus agregado")
@@ -234,7 +234,7 @@ with st.container(border=True):
 
 # -- 3. Evolucion temporal ---------------------------------------------------------
 
-theme.seccion("Evolución temporal", "📈")
+theme.seccion("Evolución temporal")
 with st.container(border=True):
     if serie is None:
         _aviso_cache("serie diaria")
@@ -269,7 +269,7 @@ with st.container(border=True):
 
 # -- 4. Longitudes -------------------------------------------------------------------
 
-theme.seccion("Longitud de las descripciones por tipo de acto", "📏")
+theme.seccion("Longitud de las descripciones por tipo de acto")
 with st.container(border=True):
     if corpus is None:
         _aviso_cache("corpus agregado")
@@ -304,7 +304,7 @@ with st.container(border=True):
                     for texto in toponimos:
                         st.code(texto, language=None)
                     st.warning(
-                        "⚠️ **Limitación documentada del corpus**: estas cabeceras "
+                        "**Limitación documentada del corpus**: estas cabeceras "
                         "topónimas son solo el municipio de la sección del boletín; "
                         "el contenido real del acto es **irrecuperable sin el PDF** "
                         "original."
@@ -319,7 +319,7 @@ with st.container(border=True):
 
 # -- 5. Buscador -----------------------------------------------------------------------
 
-theme.seccion("Buscador", "🔎")
+theme.seccion("Buscador")
 with st.container(border=True):
     if corpus is None:
         _aviso_cache("corpus agregado")
@@ -389,10 +389,11 @@ with st.container(border=True):
             visibles = resultados.iloc[
                 (pagina - 1) * POR_PAGINA : pagina * POR_PAGINA
             ]
-            st.dataframe(
-                visibles[["bulletin", "fecha", "description"]],
-                hide_index=True,
+            # st.table (no st.dataframe) para que herede el modo claro/oscuro
+            tabla = visibles[["bulletin", "fecha", "description"]].rename(
+                columns={"bulletin": "Boletín", "fecha": "Fecha", "description": "Descripción"}
             )
+            st.table(tabla.style.hide(axis="index"))
 
             indices_visibles = list(visibles.index)
             elegida = st.selectbox(

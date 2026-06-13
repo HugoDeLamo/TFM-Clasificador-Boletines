@@ -111,7 +111,7 @@ def _render_resultado(resultado: dict, color_bloque: str) -> None:
                 theme.barra_confianza(float(conf), color_bloque)
 
         if out.get("reasoning"):
-            st.info(f"💬 {out['reasoning']}")
+            st.info(out["reasoning"])
 
         # Pie discreto: modelo + latencia, o el origen del cache
         if resultado.get("latencia_s") is not None:
@@ -152,7 +152,7 @@ if modo_demo:
 
 # -- Selector de bloque (tarjetas clicables) ----------------------------------------
 
-theme.seccion("Bloque temático", "🧭")
+theme.seccion("Bloque temático")
 
 bloques_ids = list(config.BLOQUES.keys())
 st.session_state.setdefault("clasificador_bloque", bloques_ids[0])
@@ -198,14 +198,15 @@ color_bloque = config.COLORES_BLOQUE[bloque]
 
 # -- Galeria de ejemplos -----------------------------------------------------------
 
-theme.seccion("Ejemplos de la galería", "✨")
+theme.seccion("Ejemplos de la galería")
 st.caption(
     "Casos reales del ground truth: pulsa uno y se rellena el formulario. "
-    "El punto de color anticipa el bloque al que pertenece."
+    "Al seleccionarlo, el bloque correspondiente se activa automáticamente."
 )
 
-_TITULOS_EJEMPLOS = {
-    e["id"]: f'{config.PUNTOS_BLOQUE.get(e["bloque"], "")} {e["titulo"]}'
+# Etiqueta legible del ejemplo: nombre del bloque + título del caso
+_ETIQUETA_EJEMPLO = {
+    e["id"]: f'{config.BLOQUES[e["bloque"]]["nombre"]} — {e["titulo"]}'
     for e in config.GALERIA_EJEMPLOS
 }
 
@@ -221,28 +222,18 @@ def _aplicar_ejemplo() -> None:
     st.session_state["ejemplo_activo"] = ejemplo["id"]
 
 
-if hasattr(st, "pills"):
-    st.pills(
-        "Galería de ejemplos",
-        options=list(_TITULOS_EJEMPLOS),
-        format_func=_TITULOS_EJEMPLOS.get,
-        selection_mode="single",
-        key="clasificador_galeria",
-        on_change=_aplicar_ejemplo,
-        label_visibility="collapsed",
-    )
-else:  # fallback para versiones de Streamlit sin st.pills
-    cols_galeria = st.columns(len(_TITULOS_EJEMPLOS))
-    for col, (ej_id, titulo) in zip(cols_galeria, _TITULOS_EJEMPLOS.items()):
-        def _seleccionar(ej_id: str = ej_id) -> None:
-            st.session_state["clasificador_galeria"] = ej_id
-            _aplicar_ejemplo()
-
-        col.button(titulo, key=f"clasificador_btn_{ej_id}", on_click=_seleccionar)
+st.selectbox(
+    "Elige un ejemplo de la galería",
+    options=[None, *_ETIQUETA_EJEMPLO],
+    format_func=lambda k: "— Selecciona un caso —" if k is None else _ETIQUETA_EJEMPLO[k],
+    key="clasificador_galeria",
+    on_change=_aplicar_ejemplo,
+    label_visibility="collapsed",
+)
 
 # -- Formulario --------------------------------------------------------------------
 
-theme.seccion("Publicación", "📝")
+theme.seccion("Publicación")
 
 st.session_state.setdefault("clasificar_descripcion", "")
 st.session_state.setdefault("clasificar_bulletin", config.BOLETINES[0])
@@ -397,7 +388,7 @@ if clasificar_click:
 
 resultado_actual = st.session_state.get("clasificador_resultado")
 if resultado_actual:
-    theme.seccion("Resultado de la clasificación", "🔬")
+    theme.seccion("Resultado de la clasificación")
     color_resultado = config.COLORES_BLOQUE.get(
         resultado_actual.get("bloque", bloque), color_bloque
     )

@@ -79,22 +79,22 @@ st.markdown(
     f"Bloque evaluado: {theme.badge_bloque('B0')}", unsafe_allow_html=True
 )
 theme.tarjetas_metricas([
-    ("🏆", f"{_mejor_macro:.3f}", f"Mejor Macro F1 · {_exp_mejor_macro}"),
-    ("🎯", f"{_mejor_f1_rel:.3f}", "Mejor F1 relevancia"),
-    ("⚡", f"{_mas_rapido:.2f} s", f"s/ítem · {_exp_mas_rapido}"),
-    ("🧪", f"{_n_exp}", "Experimentos evaluados"),
+    (f"{_mejor_macro:.3f}", f"Mejor Macro F1 · {_exp_mejor_macro}"),
+    (f"{_mejor_f1_rel:.3f}", "Mejor F1 relevancia"),
+    (f"{_mas_rapido:.2f} s", f"s/ítem · {_exp_mas_rapido}"),
+    (f"{_n_exp}", "Experimentos evaluados"),
 ])
 
 # -- 1. Tabla resumen --------------------------------------------------------------
 with st.container(border=True):
-    theme.seccion("Tabla resumen de experimentos", "📋")
+    theme.seccion("Tabla resumen de experimentos")
 
     COLS_MAX = ["F1 relevancia", "Micro F1", "Macro F1", "Jaccard", "Subset Acc"]
     COLS_MIN = ["Hamming", "s/ítem"]
-    # Resaltado suave del mejor valor por columna: tinte azul y numero en
-    # negrita del color primario (nada de celdas azul oscuro)
+    # Resaltado suave del mejor valor por columna: tinte verde y numero en
+    # negrita del color primario
     _estilo_mejor = (
-        "background-color: rgba(29,111,163,.12); "
+        "background-color: rgba(76,154,42,.16); "
         f"color: {config.COLOR_PRIMARIO}; font-weight: 700;"
     )
 
@@ -136,22 +136,22 @@ with st.container(border=True):
 
 # -- 2. Evolución de las métricas ---------------------------------------------------
 with st.container(border=True):
-    theme.seccion("Evolución de las métricas", "📈")
+    theme.seccion("Evolución de las métricas")
     st.plotly_chart(charts.fig_evolucion_metricas(df_metricas), width="stretch", config=charts.PLOTLY_CONFIG)
     st.caption(
-        "Las líneas siguen los experimentos con Qwen 3.5 9B; los rombos corales "
+        "Las líneas siguen los experimentos con Qwen 3.5 9B; los rombos naranjas "
         "marcan a Gemma 4 4B como punto de comparación."
     )
 
 # -- 3. F1 por etiqueta --------------------------------------------------------------
 with st.container(border=True):
-    theme.seccion("F1 por etiqueta", "🔥")
+    theme.seccion("F1 por etiqueta")
     matriz = pd.DataFrame(
         {nombre: metricas[nombre]["f1_por_etiqueta"] for nombre in nombres_exp}
     ).reindex(config.LABELS_B0)
     st.plotly_chart(charts.fig_heatmap_f1(matriz), width="stretch", config=charts.PLOTLY_CONFIG)
 
-    theme.seccion("Comparar dos experimentos", "⚖️")
+    theme.seccion("Comparar dos experimentos")
     col_a, col_b = st.columns(2)
     with col_a:
         exp_a = st.selectbox("Experimento A", nombres_exp, index=0)
@@ -161,12 +161,12 @@ with st.container(border=True):
 
 # -- 4. Velocidad frente a calidad ----------------------------------------------------
 with st.container(border=True):
-    theme.seccion("Velocidad frente a calidad", "⚡")
+    theme.seccion("Velocidad frente a calidad")
     st.plotly_chart(charts.fig_scatter_velocidad(df_metricas), width="stretch", config=charts.PLOTLY_CONFIG)
 
 # -- 5. Explorador de errores ----------------------------------------------------------
 with st.container(border=True):
-    theme.seccion("Explorador de errores", "🕵️")
+    theme.seccion("Explorador de errores")
     exp_err = st.selectbox("Experimento", nombres_exp, index=0, key="exp_errores")
     df_eval = metricas[exp_err]["df_eval"]
     errores = df_eval[~df_eval["acierto_exacto"].astype(bool)].sort_values("id")
@@ -176,15 +176,23 @@ with st.container(border=True):
     if errores.empty:
         st.info("Este experimento no comete ningún error de acierto exacto.")
     else:
+        a_si_no = lambda v: "Sí" if data_loader.parse_bool(v) else "No"
         tabla_errores = pd.DataFrame({
-            "Descripción": errores["description"].values,
-            "GT relevante": errores["is_relevant_gt"].map(data_loader.parse_bool).values,
+            "Descripción": [str(d)[:160] for d in errores["description"].values],
+            "GT rel.": [a_si_no(v) for v in errores["is_relevant_gt"].values],
             "GT etiquetas": [", ".join(s) for s in errores["gt_set"]],
-            "Predicción relevante": errores["is_relevant_pred"].map(data_loader.parse_bool).values,
-            "Predicción etiquetas": [", ".join(s) for s in errores["pred_set"]],
-            "Razonamiento": errores["reasoning"].values,
+            "Pred. rel.": [a_si_no(v) for v in errores["is_relevant_pred"].values],
+            "Pred. etiquetas": [", ".join(s) for s in errores["pred_set"]],
         })
-        st.dataframe(tabla_errores, width="stretch", hide_index=True)
+        # st.table para heredar el modo claro/oscuro (el razonamiento completo
+        # se omite de la tabla por longitud; va en un expander debajo)
+        st.table(tabla_errores.style.hide(axis="index"))
+        with st.expander("Ver el razonamiento del modelo en cada error"):
+            for _, fila in errores.iterrows():
+                st.markdown(
+                    f"**{str(fila['description'])[:120]}…**  \n"
+                    f"{fila['reasoning']}"
+                )
 
     st.caption(
         "Los registros donde la predicción difiere del ground truth, con el "
