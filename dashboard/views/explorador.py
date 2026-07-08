@@ -11,7 +11,6 @@ for p in (str(ROOT), str(ROOT / "src")):
     if p not in sys.path:
         sys.path.insert(0, p)
 
-import math
 import re
 import unicodedata
 
@@ -369,44 +368,59 @@ with st.container(border=True):
             ]
 
         n_res = len(resultados)
-        st.markdown(
-            f"**{n_res:,}".replace(",", ".") + " coincidencias**"
-        )
 
         if n_res == 0:
+            st.markdown("**0 coincidencias**")
             st.info("Sin resultados. Prueba a relajar los filtros.")
         else:
-            POR_PAGINA = 20
-            total_paginas = max(1, math.ceil(n_res / POR_PAGINA))
-            pagina = st.number_input(
-                f"Página (de {total_paginas})",
-                min_value=1,
-                max_value=total_paginas,
-                value=1,
-                step=1,
-                key="busqueda_pagina",
-            )
-            visibles = resultados.iloc[
-                (pagina - 1) * POR_PAGINA : pagina * POR_PAGINA
-            ]
-            # st.table (no st.dataframe) para que herede el modo claro/oscuro
-            tabla = visibles[["bulletin", "fecha", "description"]].rename(
-                columns={"bulletin": "Boletín", "fecha": "Fecha", "description": "Descripción"}
-            )
-            st.table(tabla.style.hide(axis="index"))
+            # Tope de filas mostradas para que la tabla sea ágil (el dataframe
+            # es scrollable y virtualizado; afinar la búsqueda reduce el total).
+            TOPE = 500
+            vista = resultados.head(TOPE).reset_index(drop=True)
+            if n_res > TOPE:
+                st.markdown(
+                    f"**{n_res:,}".replace(",", ".")
+                    + f" coincidencias** · mostrando las primeras {TOPE}; "
+                    "afina la búsqueda para verlas todas."
+                )
+            else:
+                st.markdown(f"**{n_res:,}".replace(",", ".") + " coincidencias**")
+            st.caption("Haz clic en una fila para seleccionarla y pulsa «Clasificar».")
 
-            indices_visibles = list(visibles.index)
-            elegida = st.selectbox(
-                "Selecciona una publicación de esta página",
-                options=indices_visibles,
-                format_func=lambda i: str(visibles.loc[i, "description"])[:90],
-                key="busqueda_fila",
+            tabla = pd.DataFrame({
+                "Boletín": vista["bulletin"].map(lambda b: config.NOMBRE_BOLETIN.get(b, b)),
+                "Fecha": pd.to_datetime(vista["fecha"]).dt.strftime("%d/%m/%Y"),
+                "Descripción": vista["description"],
+            })
+            evento = st.dataframe(
+                tabla,
+                hide_index=True,
+                width="stretch",
+                height=380,
+                on_select="rerun",
+                selection_mode="single-row",
+                column_config={
+                    "Boletín": st.column_config.TextColumn(width="small"),
+                    "Fecha": st.column_config.TextColumn(width="small"),
+                    "Descripción": st.column_config.TextColumn(width="large"),
+                },
+                key="busqueda_tabla",
             )
-            if st.button("Clasificar esta publicación", type="primary"):
-                st.session_state["clasificar_descripcion"] = str(
-                    visibles.loc[elegida, "description"]
+
+            filas_sel = evento.selection.rows if evento and evento.selection else []
+            fila = vista.iloc[filas_sel[0]] if filas_sel else None
+
+            if fila is not None:
+                st.caption(
+                    f"Seleccionada · **{config.NOMBRE_BOLETIN.get(fila['bulletin'], fila['bulletin'])}** — "
+                    f"{str(fila['description'])[:120]}…"
                 )
-                st.session_state["clasificar_bulletin"] = str(
-                    visibles.loc[elegida, "bulletin"]
-                )
+            if st.button(
+                "⚡ Clasificar la publicación seleccionada",
+                type="primary",
+                disabled=(fila is None),
+                width="stretch",
+            ):
+                st.session_state["clasificar_descripcion"] = str(fila["description"])
+                st.session_state["clasificar_bulletin"] = str(fila["bulletin"])
                 st.switch_page("views/clasificador.py")

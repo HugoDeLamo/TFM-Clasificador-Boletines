@@ -271,6 +271,11 @@ div[data-testid="stVerticalBlockBorderWrapper"] .seccion {{ margin-top: .4rem; }
   transition: transform .2s ease, box-shadow .2s ease;
 }}
 .stButton > button[kind="primary"]:hover {{ transform: translateY(-2px); box-shadow: 0 8px 20px rgba(76,154,42,.40); }}
+/* botón primario deshabilitado: gris apagado (se "enciende" al habilitarse) */
+.stButton > button[kind="primary"]:disabled {{
+  background: {p['borde']} !important; color: {p['texto_suave']} !important;
+  box-shadow: none !important; transform: none !important; cursor: not-allowed; opacity: .7;
+}}
 .stButton > button[kind="secondary"] {{
   background: {p['tarjeta']}; color: {p['texto']}; border: 1px solid {p['borde']};
 }}
