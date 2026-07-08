@@ -1,0 +1,7 @@
+experimento,modelo,prompt,contexto_n1,n,f1_relevancia,micro_f1,macro_f1,hamming_loss,jaccard_samples,subset_accuracy
+Exp1,Qwen 3.5 9B,v1,no,38,0.75,0.7416,0.5912,0.0757,0.4386,0.6316
+Exp2,Qwen 3.5 9B,v2,no,38,0.9655,0.932,0.93,0.023,0.7127,0.8684
+Exp3,Qwen 3.5 9B,v2,si,36,0.9434,0.9592,0.9041,0.0139,0.6852,0.8889
+Exp4,Qwen 3.5 9B,v3,no,38,0.9831,0.9815,0.9708,0.0066,0.7544,0.9474
+Exp5,Gemma 4 4B,v2,no,38,0.9655,0.9423,0.9396,0.0197,0.7281,0.9211
+Exp6,Qwen 3.5 9B,v4,no,38,0.9655,0.9333,0.9251,0.023,0.7171,0.8947

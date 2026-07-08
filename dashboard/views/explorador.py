@@ -373,9 +373,9 @@ with st.container(border=True):
             st.markdown("**0 coincidencias**")
             st.info("Sin resultados. Prueba a relajar los filtros.")
         else:
-            # Tope de filas mostradas para que la tabla sea ágil (el dataframe
-            # es scrollable y virtualizado; afinar la búsqueda reduce el total).
-            TOPE = 500
+            # Lista clicable (fila = botón que ocupa todo el ancho): clicar en
+            # cualquier parte selecciona, sin casillas. Tope para que sea ágil.
+            TOPE = 100
             vista = resultados.head(TOPE).reset_index(drop=True)
             if n_res > TOPE:
                 st.markdown(
@@ -385,36 +385,44 @@ with st.container(border=True):
                 )
             else:
                 st.markdown(f"**{n_res:,}".replace(",", ".") + " coincidencias**")
-            st.caption("Haz clic en una fila para seleccionarla y pulsa «Clasificar».")
+            st.caption("Haz clic en una publicación para seleccionarla; se mostrará entera abajo.")
 
-            tabla = pd.DataFrame({
-                "Boletín": vista["bulletin"].map(lambda b: config.NOMBRE_BOLETIN.get(b, b)),
-                "Fecha": pd.to_datetime(vista["fecha"]).dt.strftime("%d/%m/%Y"),
-                "Descripción": vista["description"],
-            })
-            evento = st.dataframe(
-                tabla,
-                hide_index=True,
-                width="stretch",
-                height=380,
-                on_select="rerun",
-                selection_mode="single-row",
-                column_config={
-                    "Boletín": st.column_config.TextColumn(width="small"),
-                    "Fecha": st.column_config.TextColumn(width="small"),
-                    "Descripción": st.column_config.TextColumn(width="large"),
-                },
-                key="busqueda_tabla",
-            )
+            # Índice seleccionado (se reinicia si la búsqueda cambió el conjunto)
+            sel = st.session_state.get("busqueda_sel")
+            if sel is not None and sel >= len(vista):
+                sel = None
+                st.session_state["busqueda_sel"] = None
 
-            filas_sel = evento.selection.rows if evento and evento.selection else []
-            fila = vista.iloc[filas_sel[0]] if filas_sel else None
+            def _seleccionar(i: int) -> None:
+                st.session_state["busqueda_sel"] = i
 
+            fechas_fmt = pd.to_datetime(vista["fecha"]).dt.strftime("%d/%m/%Y")
+            with st.container(height=360):
+                for i, row in vista.iterrows():
+                    bol = config.NOMBRE_BOLETIN.get(row["bulletin"], row["bulletin"])
+                    desc = str(row["description"]).replace("\n", " ")
+                    etiqueta = f"{bol} · {fechas_fmt[i]} — {desc[:120]}"
+                    if len(desc) > 120:
+                        etiqueta += "…"
+                    st.button(
+                        etiqueta,
+                        key=f"res_{i}",
+                        on_click=_seleccionar,
+                        args=(i,),
+                        width="stretch",
+                        type="primary" if sel == i else "secondary",
+                    )
+
+            fila = vista.iloc[sel] if sel is not None else None
+
+            # Detalle de la publicación seleccionada: descripción COMPLETA
             if fila is not None:
-                st.caption(
-                    f"Seleccionada · **{config.NOMBRE_BOLETIN.get(fila['bulletin'], fila['bulletin'])}** — "
-                    f"{str(fila['description'])[:120]}…"
-                )
+                with st.container(border=True):
+                    st.markdown(
+                        f"**{config.NOMBRE_BOLETIN.get(fila['bulletin'], fila['bulletin'])}** · "
+                        f"{pd.to_datetime(fila['fecha']).strftime('%d/%m/%Y')}"
+                    )
+                    st.write(str(fila["description"]))
             if st.button(
                 "⚡ Clasificar la publicación seleccionada",
                 type="primary",

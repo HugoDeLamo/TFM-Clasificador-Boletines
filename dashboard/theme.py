@@ -279,6 +279,13 @@ div[data-testid="stVerticalBlockBorderWrapper"] .seccion {{ margin-top: .4rem; }
 .stButton > button[kind="secondary"] {{
   background: {p['tarjeta']}; color: {p['texto']}; border: 1px solid {p['borde']};
 }}
+/* filas-botón del buscador (key="res_N"): aspecto de lista, texto a la izquierda */
+[class*="st-key-res_"] button {{
+  justify-content: flex-start !important; text-align: left !important;
+  font-weight: 500 !important; padding: .5rem .8rem !important; min-height: 0 !important;
+}}
+[class*="st-key-res_"] button p {{ text-align: left !important; white-space: normal; line-height: 1.35; }}
+[class*="st-key-res_"] {{ margin-bottom: .3rem; }}
 div[data-testid="stMetric"] {{
   background: {p['tarjeta']}; border-radius: 12px; padding: .85rem 1.05rem;
   border: 1px solid {p['borde']}; border-left: 4px solid {config.PALETA_VERDES[2]};
